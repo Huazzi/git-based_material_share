@@ -789,6 +789,7 @@ nav button:hover {
     box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
     margin: 0.5rem 0;
     position: relative;
+    transition: transform 0.2s ease;
 }
 
 .preview-content {
@@ -799,6 +800,7 @@ nav button:hover {
     justify-content: center;
     align-items: flex-start;
     overflow: auto;
+    height: 100%;
 }
 
 .pdf-preview-mode {
@@ -809,16 +811,6 @@ nav button:hover {
     overflow: hidden;
 }
 
-.pdf-preview-mode > div {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    margin: 0;
-    padding: 0;
-    overflow: hidden;
-}
-
-/* PDF预览 */
 .pdf-container {
     display: flex;
     flex-direction: column;
@@ -826,64 +818,13 @@ nav button:hover {
     height: 100%;
     max-width: 100%;
     margin: 0 auto;
-    background-color: #eee;
+    background-color: #f5f5f5;
     position: relative;
     overflow: hidden;
 }
 
 .pdf-controls {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    gap: 1rem;
-    padding: 0.75rem;
-    background-color: #f8f9fa;
-    border-bottom: 1px solid #ddd;
-    color: #333;
-    position: sticky;
-    top: 0;
-    z-index: 10;
-    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
-    margin-bottom: 0;
-}
-
-.pdf-controls button {
-    background-color: #f8f9fa;
-    color: #333;
-    border: 1px solid #ddd;
-    padding: 0.3rem;
-    border-radius: var(--radius-sm);
-    cursor: pointer;
-    transition: var(--transition);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    min-width: 2rem;
-    height: 2rem;
-}
-
-.pdf-controls button:hover:not(:disabled) {
-    background-color: #e9ecef;
-}
-
-.pdf-controls button:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-}
-
-.pdf-controls .page-info {
-    display: flex;
-    align-items: center;
-    gap: 0.4rem;
-    white-space: nowrap;
-}
-
-.pdf-controls .page-input {
-    width: 2.5rem;
-    text-align: center;
-    padding: 0.2rem;
-    border: 1px solid #ddd;
-    border-radius: var(--radius-sm);
+    display: none;
 }
 
 .pdf-toolbar {
@@ -1138,8 +1079,33 @@ nav button:hover {
     display: flex;
     flex-direction: column;
     align-items: center;
-    padding: 0 2rem;
-    padding-top: 0;
-    background-color: #eee;
-    gap: 0.5rem;
+    padding: 2rem;
+    background-color: #f5f5f5;
+    gap: 1rem;
+    height: 100%;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(0, 0, 0, 0.2) transparent;
+}
+
+.pdf-viewer::-webkit-scrollbar {
+    width: 8px;
+}
+
+.pdf-viewer::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.pdf-viewer::-webkit-scrollbar-thumb {
+    background-color: rgba(0, 0, 0, 0.2);
+    border-radius: 4px;
+    border: 2px solid transparent;
+}
+
+.pdf-preview-mode > div {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
 }

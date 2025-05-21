@@ -653,8 +653,8 @@ const app = createApp({
             pdfDocument.value = null;
             pdfCurrentPage.value = 1;
             pdfTotalPages.value = 0;
-            pdfScale.value = 1.5;
-            pdfContinuousMode.value = true;
+            pdfScale.value = 1.5; // 使用较大的缩放比例以便更清晰地查看内容
+            pdfContinuousMode.value = true; // 强制使用连续模式，更适合没有控制栏的情况
             pdfPageCache.value = {};
 
             const extension = getFileExtension(item.name);
@@ -770,8 +770,11 @@ const app = createApp({
                                 previewContentElement.style.padding = '0';
                             }
                             
-                            // 渲染当前页面
-                            await renderPdfPage(pdfCurrentPage.value);
+                            // 强制使用连续模式渲染所有页面
+                            pdfContinuousMode.value = true;
+                            
+                            // 渲染所有页面
+                            await renderAllPdfPages();
                             
                         } catch (pdfError) {
                             console.error('PDF预览错误:', pdfError);
@@ -856,6 +859,32 @@ const app = createApp({
                     // Vue可能需要一段时间来更新DOM
                     setTimeout(() => Prism.highlightAllUnder(document.querySelector('.code-preview')), 0);
                 }
+            }
+        }
+        
+        // 新增函数：一次性渲染所有PDF页面
+        async function renderAllPdfPages() {
+            if (!pdfDocument.value) return;
+            
+            try {
+                previewLoading.value = true;
+                
+                // 清除PDF查看器内容
+                const pdfViewer = document.getElementById('pdf-viewer');
+                if (!pdfViewer) return;
+                
+                pdfViewer.innerHTML = '';
+                
+                // 渲染所有页面
+                for (let i = 1; i <= pdfTotalPages.value; i++) {
+                    await renderSinglePage(i, pdfViewer);
+                }
+                
+            } catch (error) {
+                console.error('渲染PDF页面失败:', error);
+                previewError.value = `无法渲染PDF页面: ${error.message}`;
+            } finally {
+                previewLoading.value = false;
             }
         }
         

@@ -318,36 +318,6 @@
                     <div v-else>
                         <!-- PDF预览 -->
                         <div v-if="previewType === 'pdf'" class="pdf-container">
-                            <div class="pdf-controls">
-                                <div class="pdf-toolbar">
-                                    <button @click="pdfPrevPage" :disabled="pdfCurrentPage <= 1" title="上一页">
-                                        <i class="fas fa-chevron-left"></i>
-                                    </button>
-                                    
-                                    <div class="page-info">
-                                        <input type="number" class="page-input" v-model.number="pdfCurrentPage" min="1" :max="pdfTotalPages" @change="jumpToPage">
-                                        <span>/ {{ pdfTotalPages }}</span>
-                                    </div>
-                                    
-                                    <button @click="pdfNextPage" :disabled="pdfCurrentPage >= pdfTotalPages" title="下一页">
-                                        <i class="fas fa-chevron-right"></i>
-                                    </button>
-                                    
-                                    <button @click="pdfZoomOut" :disabled="pdfScale <= 0.5" title="缩小">
-                                        <i class="fas fa-search-minus"></i>
-                                    </button>
-                                    
-                                    <span class="zoom-level">{{ Math.round(pdfScale * 100) }}%</span>
-                                    
-                                    <button @click="pdfZoomIn" title="放大">
-                                        <i class="fas fa-search-plus"></i>
-                                    </button>
-                                    
-                                    <button @click="togglePdfContinuousMode" title="切换连续/单页模式">
-                                        <i :class="pdfContinuousMode ? 'fas fa-stream' : 'fas fa-file'"></i>
-                                    </button>
-                                </div>
-                            </div>
                             <div id="pdf-viewer" class="pdf-viewer"></div>
                         </div>
                         
