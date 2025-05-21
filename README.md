@@ -34,11 +34,11 @@
 
 ```
 /
-├── index.html          основных HTML-файл приложения
-├── style.css          стили для приложения
-├── app.js             логика приложения на Vue.js
-├── utils.js           вспомогательные функции
-└── README.md          этот файл
+├── index.html
+├── style.css
+├── app.js
+├── utils.js
+└── README.md
 ```
 
 ## 安装与运行
