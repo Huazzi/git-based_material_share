@@ -11,4 +11,4 @@
   status = 200
   force = false
   conditions = {Path = {match_path = "!/api/*"}}
-  conditions = {Path = {match_path = "!/\.netlify/functions/*"}} 
+  conditions = {Path = {match_path = "!/.netlify/functions/*"}} 
