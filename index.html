@@ -308,7 +308,7 @@
                         </button>
                     </div>
                 </div>
-                <div class="preview-content">
+                <div class="preview-content" :class="{'pdf-preview-mode': previewType === 'pdf'}">
                     <div v-if="previewLoading" class="loading">
                         <i class="fas fa-spinner fa-spin"></i> 正在加载预览...
                     </div>
@@ -318,22 +318,37 @@
                     <div v-else>
                         <!-- PDF预览 -->
                         <div v-if="previewType === 'pdf'" class="pdf-container">
-                            <div id="pdf-viewer" class="pdf-viewer"></div>
                             <div class="pdf-controls">
-                                <button @click="pdfPrevPage" :disabled="pdfCurrentPage <= 1">
-                                    <i class="fas fa-chevron-left"></i> 上一页
-                                </button>
-                                <span>{{ pdfCurrentPage }} / {{ pdfTotalPages }}</span>
-                                <button @click="pdfNextPage" :disabled="pdfCurrentPage >= pdfTotalPages">
-                                    下一页 <i class="fas fa-chevron-right"></i>
-                                </button>
-                                <button @click="pdfZoomIn">
-                                    <i class="fas fa-search-plus"></i>
-                                </button>
-                                <button @click="pdfZoomOut">
-                                    <i class="fas fa-search-minus"></i>
-                                </button>
+                                <div class="pdf-toolbar">
+                                    <button @click="pdfPrevPage" :disabled="pdfCurrentPage <= 1" title="上一页">
+                                        <i class="fas fa-chevron-left"></i>
+                                    </button>
+                                    
+                                    <div class="page-info">
+                                        <input type="number" class="page-input" v-model.number="pdfCurrentPage" min="1" :max="pdfTotalPages" @change="jumpToPage">
+                                        <span>/ {{ pdfTotalPages }}</span>
+                                    </div>
+                                    
+                                    <button @click="pdfNextPage" :disabled="pdfCurrentPage >= pdfTotalPages" title="下一页">
+                                        <i class="fas fa-chevron-right"></i>
+                                    </button>
+                                    
+                                    <button @click="pdfZoomOut" :disabled="pdfScale <= 0.5" title="缩小">
+                                        <i class="fas fa-search-minus"></i>
+                                    </button>
+                                    
+                                    <span class="zoom-level">{{ Math.round(pdfScale * 100) }}%</span>
+                                    
+                                    <button @click="pdfZoomIn" title="放大">
+                                        <i class="fas fa-search-plus"></i>
+                                    </button>
+                                    
+                                    <button @click="togglePdfContinuousMode" title="切换连续/单页模式">
+                                        <i :class="pdfContinuousMode ? 'fas fa-stream' : 'fas fa-file'"></i>
+                                    </button>
+                                </div>
                             </div>
+                            <div id="pdf-viewer" class="pdf-viewer"></div>
                         </div>
                         
                         <!-- Word文档预览 -->

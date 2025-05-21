@@ -71,6 +71,8 @@ const app = createApp({
         const pdfCurrentPage = ref(1);
         const pdfTotalPages = ref(0);
         const pdfScale = ref(1.5);
+        const pdfContinuousMode = ref(true); // 默认使用连续模式
+        const pdfPageCache = ref({});        // 缓存已渲染的页面
 
         const notification = reactive({
             show: false,
@@ -652,6 +654,8 @@ const app = createApp({
             pdfCurrentPage.value = 1;
             pdfTotalPages.value = 0;
             pdfScale.value = 1.5;
+            pdfContinuousMode.value = true;
+            pdfPageCache.value = {};
 
             const extension = getFileExtension(item.name);
 
@@ -669,7 +673,21 @@ const app = createApp({
                 let contentToPreview = '';
 
                 if (fileData.encoding === 'base64') {
-                    contentToPreview = atob(fileData.content);
+                    // 使用更可靠的方法解码base64，以支持UTF-8字符
+                    try {
+                        // 解码base64为字节数组
+                        const binaryString = atob(fileData.content);
+                        const bytes = new Uint8Array(binaryString.length);
+                        for (let i = 0; i < binaryString.length; i++) {
+                            bytes[i] = binaryString.charCodeAt(i);
+                        }
+                        // 使用TextDecoder将字节数组转换为UTF-8字符串
+                        contentToPreview = new TextDecoder('utf-8').decode(bytes);
+                    } catch (e) {
+                        console.error("Base64解码错误:", e);
+                        // 如果解码失败，回退到旧方法
+                        contentToPreview = atob(fileData.content);
+                    }
                 } else {
                     contentToPreview = fileData.content || "无法解码文件内容或内容为空。";
                 }
@@ -788,8 +806,21 @@ const app = createApp({
                     previewContent.value = result.value; // HTML内容
                 } else if (extension === 'md') {
                     previewType.value = 'markdown';
-                    // 使用Marked转换Markdown为HTML
-                    previewContent.value = marked.parse(contentToPreview);
+                    // 对Markdown内容进行额外的编码处理
+                    try {
+                        // 确保内容是UTF-8编码
+                        const encoder = new TextEncoder();
+                        const decoder = new TextDecoder('utf-8');
+                        const bytes = encoder.encode(contentToPreview);
+                        const processedContent = decoder.decode(bytes);
+                        
+                        // 使用Marked转换Markdown为HTML
+                        previewContent.value = marked.parse(processedContent);
+                    } catch (e) {
+                        console.error("Markdown解码错误:", e);
+                        // 退回到原始方法
+                        previewContent.value = marked.parse(contentToPreview);
+                    }
                 } else if (['js', 'json', 'html', 'css', 'xml', 'py', 'rb', 'java', 'c', 'cpp', 'cs', 'php', 'sh', 'ts', 'go', 'swift', 'kt'].includes(extension)) {
                     previewType.value = 'code';
                     previewLanguage.value = extension === 'json' ? 'javascript' : extension;
@@ -829,13 +860,91 @@ const app = createApp({
             try {
                 previewLoading.value = true;
                 
+                // 清除PDF查看器内容
+                const pdfViewer = document.getElementById('pdf-viewer');
+                if (!pdfViewer) return;
+                
+                if (!pdfContinuousMode.value) {
+                    // 单页模式: 每次只显示一页
+                    pdfViewer.innerHTML = '';
+                    
+                    const page = await pdfDocument.value.getPage(pageNumber);
+                    const viewport = page.getViewport({ scale: pdfScale.value });
+                    
+                    const pageContainer = document.createElement('div');
+                    pageContainer.className = 'pdf-page';
+                    pageContainer.dataset.pageNumber = pageNumber;
+                    
+                    const canvas = document.createElement('canvas');
+                    const context = canvas.getContext('2d');
+                    canvas.height = viewport.height;
+                    canvas.width = viewport.width;
+                    
+                    pageContainer.style.width = `${viewport.width}px`;
+                    pageContainer.style.height = `${viewport.height}px`;
+                    
+                    pageContainer.appendChild(canvas);
+                    pdfViewer.appendChild(pageContainer);
+                    
+                    const renderContext = {
+                        canvasContext: context,
+                        viewport: viewport
+                    };
+                    
+                    await page.render(renderContext).promise;
+                    pdfCurrentPage.value = pageNumber;
+                } else {
+                    // 连续模式: 一次性渲染所有页面或按需渲染
+                    pdfViewer.innerHTML = '';
+                    
+                    // 渲染所有页面
+                    for (let i = 1; i <= pdfTotalPages.value; i++) {
+                        await renderSinglePage(i, pdfViewer);
+                    }
+                    
+                    // 滚动到指定页面
+                    setTimeout(() => {
+                        const targetPage = pdfViewer.querySelector(`[data-page-number="${pageNumber}"]`);
+                        if (targetPage) {
+                            targetPage.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                            pdfCurrentPage.value = pageNumber;
+                        }
+                    }, 100);
+                }
+            } catch (error) {
+                console.error('渲染PDF页面失败:', error);
+                previewError.value = `无法渲染PDF页面: ${error.message}`;
+            } finally {
+                previewLoading.value = false;
+            }
+        }
+        
+        // 渲染单个PDF页面的辅助函数
+        async function renderSinglePage(pageNumber, container) {
+            // 从缓存获取页面
+            if (pdfPageCache.value[pageNumber]) {
+                container.appendChild(pdfPageCache.value[pageNumber].cloneNode(true));
+                return;
+            }
+            
+            try {
                 const page = await pdfDocument.value.getPage(pageNumber);
                 const viewport = page.getViewport({ scale: pdfScale.value });
+                
+                const pageContainer = document.createElement('div');
+                pageContainer.className = 'pdf-page';
+                pageContainer.dataset.pageNumber = pageNumber;
                 
                 const canvas = document.createElement('canvas');
                 const context = canvas.getContext('2d');
                 canvas.height = viewport.height;
                 canvas.width = viewport.width;
+                
+                pageContainer.style.width = `${viewport.width}px`;
+                pageContainer.style.height = `${viewport.height}px`;
+                
+                pageContainer.appendChild(canvas);
+                container.appendChild(pageContainer);
                 
                 const renderContext = {
                     canvasContext: context,
@@ -844,18 +953,46 @@ const app = createApp({
                 
                 await page.render(renderContext).promise;
                 
-                const pdfViewer = document.getElementById('pdf-viewer');
-                if (pdfViewer) {
-                    pdfViewer.innerHTML = '';
-                    pdfViewer.appendChild(canvas);
-                    pdfCurrentPage.value = pageNumber;
-                }
+                // 缓存渲染后的页面
+                pdfPageCache.value[pageNumber] = pageContainer.cloneNode(true);
+                
+                // 监听可视页面变化，更新当前页码
+                const observer = new IntersectionObserver((entries) => {
+                    entries.forEach(entry => {
+                        if (entry.isIntersecting && entry.intersectionRatio > 0.5) {
+                            const visiblePageNumber = parseInt(entry.target.dataset.pageNumber);
+                            if (visiblePageNumber !== pdfCurrentPage.value) {
+                                pdfCurrentPage.value = visiblePageNumber;
+                            }
+                        }
+                    });
+                }, { threshold: 0.5 });
+                
+                observer.observe(pageContainer);
+                
             } catch (error) {
-                console.error('渲染PDF页面失败:', error);
-                previewError.value = `无法渲染PDF页面: ${error.message}`;
-            } finally {
-                previewLoading.value = false;
+                console.error(`渲染PDF页面 ${pageNumber} 失败:`, error);
             }
+        }
+        
+        // 跳转到特定页面
+        async function jumpToPage() {
+            // 确保页码在有效范围内
+            if (pdfCurrentPage.value < 1) {
+                pdfCurrentPage.value = 1;
+            } else if (pdfCurrentPage.value > pdfTotalPages.value) {
+                pdfCurrentPage.value = pdfTotalPages.value;
+            }
+            
+            await renderPdfPage(pdfCurrentPage.value);
+        }
+        
+        // 切换连续/单页模式
+        async function togglePdfContinuousMode() {
+            pdfContinuousMode.value = !pdfContinuousMode.value;
+            // 切换模式后重新渲染当前页面
+            pdfPageCache.value = {}; // 清除缓存
+            await renderPdfPage(pdfCurrentPage.value);
         }
         
         async function pdfNextPage() {
@@ -872,12 +1009,14 @@ const app = createApp({
         
         async function pdfZoomIn() {
             pdfScale.value += 0.25;
+            pdfPageCache.value = {}; // 清除缓存
             await renderPdfPage(pdfCurrentPage.value);
         }
         
         async function pdfZoomOut() {
             if (pdfScale.value > 0.5) {
                 pdfScale.value -= 0.25;
+                pdfPageCache.value = {}; // 清除缓存
                 await renderPdfPage(pdfCurrentPage.value);
             }
         }
@@ -1030,6 +1169,9 @@ const app = createApp({
             pdfPrevPage,
             pdfZoomIn,
             pdfZoomOut,
+            pdfContinuousMode,
+            togglePdfContinuousMode,
+            jumpToPage,
             
             notification,
             getNotificationIcon,
