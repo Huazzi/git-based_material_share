@@ -764,6 +764,12 @@ const app = createApp({
                                 }
                             }
                             
+                            // 移除预览内容区域的内边距，消除顶部空白
+                            const previewContentElement = document.querySelector('.preview-content');
+                            if (previewContentElement) {
+                                previewContentElement.style.padding = '0';
+                            }
+                            
                             // 渲染当前页面
                             await renderPdfPage(pdfCurrentPage.value);
                             
