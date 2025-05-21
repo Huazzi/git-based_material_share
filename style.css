@@ -760,10 +760,19 @@ nav button:hover {
     justify-content: space-between;
     align-items: center;
     padding: 0.5rem 1rem;
-    background-color: rgba(255, 255, 255, 0.1);
+    background-color: rgba(0, 0, 0, 0.4);
     color: white;
     border-bottom: 1px solid rgba(255, 255, 255, 0.1);
     margin: 0;
+    position: absolute;
+    z-index: 9999;
+    height: auto;
+    min-height: 50px;
+    top: 0;
+    left: 0;
+    right: 0;
+    width: 100%;
+    pointer-events: auto;
 }
 
 .preview-header h3 {
@@ -781,6 +790,21 @@ nav button:hover {
 .preview-actions {
     display: flex;
     gap: 0.5rem;
+    position: relative;
+    z-index: 10;
+    background: transparent;
+    padding: 0;
+    margin: 0;
+    height: auto;
+}
+
+.preview-actions .action-button {
+    background: rgba(0, 0, 0, 0.3);
+    border: none;
+}
+
+.preview-actions .action-button:hover {
+    background: rgba(0, 0, 0, 0.5);
 }
 
 /* PDF预览模式特殊样式 */
@@ -801,14 +825,20 @@ nav button:hover {
     align-items: flex-start;
     overflow: auto;
     height: 100%;
+    position: relative;
+    z-index: 5;
+    padding-top: 50px; /* 为顶部标题栏留出空间 */
 }
 
 .pdf-preview-mode {
     padding: 0 !important;
+    padding-top: 50px !important; /* 为顶部标题栏留出空间 */
     display: flex;
     flex-direction: column;
     flex: 1;
     overflow: hidden;
+    position: relative;
+    z-index: 5;
 }
 
 .pdf-container {
@@ -821,6 +851,7 @@ nav button:hover {
     background-color: #f5f5f5;
     position: relative;
     overflow: hidden;
+    z-index: 5;
 }
 
 .pdf-controls {
@@ -1108,4 +1139,6 @@ nav button:hover {
     margin: 0;
     padding: 0;
     overflow: hidden;
+    position: relative;
+    z-index: 5;
 }

@@ -713,6 +713,10 @@ const app = createApp({
                             // 等待DOM更新完成，确保PDF容器已渲染
                             await nextTick();
                             
+                            // 移除任何可能存在的遮挡元素
+                            const overlayElements = document.querySelectorAll('.pdf-overlay');
+                            overlayElements.forEach(element => element.remove());
+                            
                             // 显示加载状态
                             previewLoading.value = true;
                             
@@ -768,6 +772,13 @@ const app = createApp({
                             const previewContentElement = document.querySelector('.preview-content');
                             if (previewContentElement) {
                                 previewContentElement.style.padding = '0';
+                            }
+                            
+                            // 确保预览模态框的标题栏正确显示，不会被遮挡
+                            const previewHeader = document.querySelector('.preview-header');
+                            if (previewHeader) {
+                                previewHeader.style.opacity = '1';
+                                previewHeader.style.zIndex = '1000';
                             }
                             
                             // 强制使用连续模式渲染所有页面
@@ -1071,6 +1082,16 @@ const app = createApp({
             const videoPlayer = document.getElementById('video-player');
             if (videoPlayer && videoPlayer.plyr) {
                 videoPlayer.plyr.destroy();
+            }
+            
+            // 清除任何可能存在的遮挡元素
+            const overlayElements = document.querySelectorAll('.pdf-overlay');
+            overlayElements.forEach(element => element.remove());
+            
+            // 重置预览区域的样式
+            const previewContent = document.querySelector('.preview-content');
+            if (previewContent) {
+                previewContent.style.padding = '';
             }
         }
         
