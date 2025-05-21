@@ -1,0 +1,14 @@
+[build]
+  functions = "netlify/functions"
+
+[dev]
+  functions = "netlify/functions"
+
+# 确保所有请求都能被处理，让SPA可以正常工作
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+  force = false
+  conditions = {Path = {match_path = "!/api/*"}}
+  conditions = {Path = {match_path = "!/\.netlify/functions/*"}} 

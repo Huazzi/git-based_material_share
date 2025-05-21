@@ -626,7 +626,9 @@ const app = createApp({
             }
             
             try {
-                downloadFileFromUrl(item.download_url, item.name);
+                // 使用代理URL下载文件，解决CORS问题
+                const proxyUrl = `/.netlify/functions/proxy?url=${encodeURIComponent(item.download_url)}`;
+                downloadFileFromUrl(proxyUrl, item.name);
                 showNotification(`已开始下载：${item.name}`, 'success');
             } catch (error) {
                 console.error("下载失败:", error);
@@ -674,11 +676,13 @@ const app = createApp({
 
                 if (['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'bmp'].includes(extension)) {
                     previewType.value = 'image';
-                    previewContent.value = item.download_url || `data:image/${extension};base64,${fileData.content}`;
+                    const imageUrl = item.download_url;
+                    // 使用代理服务获取图片，解决CORS问题
+                    previewContent.value = `/.netlify/functions/proxy?url=${encodeURIComponent(imageUrl)}`;
                 } else if (extension === 'pdf') {
                     previewType.value = 'pdf';
-                    const pdfUrl = item.download_url;
-                    if (pdfUrl) {
+                    const originalPdfUrl = item.download_url;
+                    if (originalPdfUrl) {
                         try {
                             // 确保 PDF.js 已加载
                             if (!window.pdfjsLib) {
@@ -694,9 +698,12 @@ const app = createApp({
                             // 显示加载状态
                             previewLoading.value = true;
                             
+                            // 使用代理服务获取PDF文件，解决CORS问题
+                            const proxyUrl = `/.netlify/functions/proxy?url=${encodeURIComponent(originalPdfUrl)}`;
+                            
                             // 加载 PDF 文档
                             const loadingTask = pdfjsLib.getDocument({
-                                url: pdfUrl,
+                                url: proxyUrl,
                                 cMapUrl: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.11.338/cmaps/',
                                 cMapPacked: true,
                             });
@@ -752,7 +759,9 @@ const app = createApp({
                 } else if (['mp4', 'webm', 'ogg', 'mov'].includes(extension)) {
                     // 视频预览
                     previewType.value = 'video';
-                    previewContent.value = item.download_url;
+                    const videoUrl = item.download_url;
+                    // 使用代理服务获取视频，解决CORS问题
+                    previewContent.value = `/.netlify/functions/proxy?url=${encodeURIComponent(videoUrl)}`;
                     
                     // 等待DOM更新，然后初始化Plyr播放器
                     await nextTick();
@@ -771,8 +780,10 @@ const app = createApp({
                     }
                 } else if (extension === 'docx') {
                     previewType.value = 'docx';
+                    // 使用代理服务获取文档，解决CORS问题
+                    const proxyUrl = `/.netlify/functions/proxy?url=${encodeURIComponent(item.download_url)}`;
                     // Mammoth.js需要ArrayBuffer，获取原始内容
-                    const docxResponse = await axios.get(item.download_url, { responseType: 'arraybuffer' });
+                    const docxResponse = await axios.get(proxyUrl, { responseType: 'arraybuffer' });
                     const result = await mammoth.convertToHtml({ arrayBuffer: docxResponse.data });
                     previewContent.value = result.value; // HTML内容
                 } else if (extension === 'md') {

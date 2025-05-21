@@ -1,0 +1,14 @@
+{
+  "name": "material-share",
+  "version": "1.0.0",
+  "description": "资料分享站",
+  "main": "index.html",
+  "dependencies": {
+    "axios": "^1.4.0"
+  },
+  "scripts": {
+    "dev": "netlify dev"
+  },
+  "author": "",
+  "license": "MIT"
+} 
