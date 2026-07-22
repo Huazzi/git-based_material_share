@@ -5,3 +5,4 @@ coverage/
 .planning/
 .playwright-cli/
 *.log
+tests/
