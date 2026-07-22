@@ -203,7 +203,20 @@ onMounted(async () => {
 
     <main v-if="loaded" class="main-content">
       <section class="repository-summary">
-        <div><p class="eyebrow">Repository Snapshot</p><h1>{{ repositoryLabel }}</h1><p>浏览和搜索均基于 commit {{ activeProvider.snapshot.commitSha.slice(0, 7) }} 的本地快照。</p></div>
+        <svg class="git-graph" viewBox="0 0 120 200" aria-hidden="true" focusable="false">
+          <path d="M30 0 V200" fill="none" stroke="#b9c9e8" stroke-width="2"/>
+          <path d="M30 78 C30 58 80 62 80 42 V18 M80 118 C80 98 30 102 30 122" fill="none" stroke="#9fd3ac" stroke-width="2"/>
+          <circle cx="30" cy="30" r="6" fill="#fff" stroke="#2e5aac" stroke-width="2.5"/>
+          <circle cx="80" cy="18" r="5" fill="#fff" stroke="#1f883d" stroke-width="2.5"/>
+          <circle cx="30" cy="78" r="6" fill="#fff" stroke="#2e5aac" stroke-width="2.5"/>
+          <circle cx="30" cy="122" r="6" fill="#2e5aac"/>
+          <circle cx="30" cy="172" r="6" fill="#fff" stroke="#2e5aac" stroke-width="2.5"/>
+        </svg>
+        <div class="repository-summary__text">
+          <p class="eyebrow">Repository Snapshot</p>
+          <h1>{{ repositoryLabel }}</h1>
+          <p class="snapshot-note">浏览和搜索均基于本地快照<span class="commit-chip"><i aria-hidden="true"></i>{{ activeProvider.snapshot.commitSha.slice(0, 7) }}</span></p>
+        </div>
         <button class="button button--secondary" :disabled="browser.loading.value || mutationBusy" @click="refreshRepository"><AppIcon name="refresh" />刷新快照</button>
       </section>
 
@@ -231,7 +244,7 @@ onMounted(async () => {
       />
     </main>
 
-    <section v-else-if="!showConfig" class="welcome-panel"><span class="spinner" /><h1>正在连接 GitHub 仓库</h1></section>
+    <section v-else-if="!showConfig" class="welcome-panel"><span class="spinner" /><h1>正在连接 GitHub 仓库</h1><p>正在读取仓库快照，请稍候…</p></section>
 
     <AppFooter :repository-label="repositoryLabel" :rate-limit="rateLimit" />
     <RepositoryConfigDialog

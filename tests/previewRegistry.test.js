@@ -6,5 +6,7 @@ describe('preview registry', () => {
     expect(resolvePreview({ kind: 'file', name: 'README.md' }).kind).toBe('markdown');
     expect(resolvePreview({ kind: 'file', name: 'demo.html' }).kind).toBe('code');
     expect(resolvePreview({ kind: 'file', name: 'archive.zip' }).supported).toBe(false);
+    expect(resolvePreview({ kind: 'file', name: 'README' }).kind).toBe('text');
+    expect(resolvePreview({ kind: 'file', name: 'LICENSE' }).supported).toBe(true);
   });
 });

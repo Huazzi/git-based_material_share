@@ -1,20 +1,58 @@
 :root {
-  color: #263247;
-  background: #f2f4f8;
-  font-family: Inter, "Segoe UI", "Microsoft YaHei", sans-serif;
+  color-scheme: light;
+
+  /* Typography — Space Grotesk 展示 / DM Sans 正文 / JetBrains Mono 元数据 */
+  --font-body: "DM Sans", "Segoe UI", "Microsoft YaHei", sans-serif;
+  --font-display: "Space Grotesk", "DM Sans", "Microsoft YaHei", sans-serif;
+  --font-mono: "JetBrains Mono", "Cascadia Code", Consolas, "Microsoft YaHei", monospace;
+
+  /* Color — Working Tree 调色板 */
+  --color-paper: #f3f5f9;
+  --color-surface: #ffffff;
+  --color-ink: #1b2434;
+  --color-ink-deep: #141c2b;
+  --color-ink-soft: #3a4660;
+  --color-muted: #66718a;
+  --color-border: #dde3ee;
+  --color-border-strong: #c6cfdf;
+
+  --color-primary: #2e5aac;
+  --color-primary-strong: #234a92;
+  --color-primary-soft: #e9eefb;
+  --color-primary-faint: #f5f8fe;
+
+  --color-commit: #1f883d;
+  --color-commit-strong: #1a7434;
+  --color-commit-soft: #e4f3e9;
+
+  --color-folder: #c08a2d;
+  --color-special: #815ac0;
+
+  --color-danger: #c93a4a;
+  --color-danger-soft: #fdecef;
+  --color-warning: #92690f;
+  --color-warning-soft: #fdf3d7;
+  --color-success: #1f883d;
+
+  /* Shape & depth */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --shadow-card: 0 1px 2px rgb(27 36 52 / 5%), 0 12px 32px -14px rgb(27 36 52 / 16%);
+  --shadow-lift: 0 2px 6px rgb(27 36 52 / 7%), 0 20px 48px -18px rgb(27 36 52 / 24%);
+  --shadow-overlay: 0 32px 90px -20px rgb(10 16 30 / 55%);
+  --ring: 0 0 0 3px rgb(46 90 172 / 24%);
+
+  /* Motion */
+  --ease-out: cubic-bezier(.22, .68, .32, 1);
+  --dur-fast: 140ms;
+  --dur-med: 220ms;
+
+  color: var(--color-ink);
+  background: var(--color-paper);
+  font-family: var(--font-body);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
-  --color-primary: #4a6baf;
-  --color-primary-dark: #38558f;
-  --color-surface: #ffffff;
-  --color-background: #f2f4f8;
-  --color-text: #263247;
-  --color-muted: #667085;
-  --color-border: #dfe4ec;
-  --color-danger: #c73d4d;
-  --color-warning: #b7791f;
-  --color-success: #2f855a;
-  --shadow-card: 0 8px 28px rgb(31 45 61 / 10%);
 }
 
 * {
@@ -30,7 +68,9 @@ body,
 
 body {
   min-width: 320px;
-  background: var(--color-background);
+  background:
+    radial-gradient(1200px 480px at 85% -180px, rgb(46 90 172 / 7%), transparent 65%),
+    var(--color-paper);
 }
 
 button,
@@ -46,4 +86,36 @@ button {
 button:disabled {
   cursor: not-allowed;
   opacity: 0.55;
+}
+
+::selection {
+  color: var(--color-ink);
+  background: rgb(46 90 172 / 18%);
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+button:focus:not(:focus-visible),
+input:focus:not(:focus-visible),
+select:focus:not(:focus-visible) {
+  outline: none;
+}
+
+h1, h2, h3 {
+  font-family: var(--font-display);
+  letter-spacing: -0.01em;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
 }

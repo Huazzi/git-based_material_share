@@ -32,7 +32,7 @@ const unsupportedMessage = computed(() => {
 <template>
   <div v-if="state.visible" class="preview-overlay">
     <header class="preview-header">
-      <div><small>{{ state.entry.path }}</small><h2>{{ state.entry.name }}</h2></div>
+      <div><small v-if="state.entry.path !== state.entry.name">{{ state.entry.path }}</small><h2>{{ state.entry.name }}</h2></div>
       <div class="preview-header__actions">
         <button v-if="policy.download" class="button button--ghost button--dark" :disabled="downloadBusy" @click="$emit('download', state.entry)"><AppIcon name="download" />{{ downloadBusy ? '下载中…' : '下载' }}</button>
         <button class="icon-button icon-button--dark" aria-label="关闭预览" @click="$emit('close')"><AppIcon name="close" :size="22" /></button>

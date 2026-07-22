@@ -14,6 +14,7 @@ export function resolvePreview(entry) {
   if (extension === 'pdf') return { kind: 'pdf', supported: true };
   if (extension === 'docx') return { kind: 'docx', supported: true };
   if (extension === 'md' || extension === 'markdown') return { kind: 'markdown', supported: true };
+  if (extension === '') return { kind: 'text', supported: true, extension };
   if (IMAGE_EXTENSIONS.has(extension)) return { kind: 'image', supported: true, extension };
   if (VIDEO_EXTENSIONS.has(extension)) return { kind: 'video', supported: true, extension };
   if (CODE_EXTENSIONS.has(extension)) return { kind: 'code', supported: true, extension };
