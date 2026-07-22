@@ -4,7 +4,11 @@ import AppIcon from '@/components/common/AppIcon.vue';
 import UnsupportedPreview from './UnsupportedPreview.vue';
 import { getFilePolicy } from '@/constants/fileLimits.js';
 
-const props = defineProps({ state: { type: Object, required: true }, errorMessage: { type: String, default: '' } });
+const props = defineProps({
+  state: { type: Object, required: true },
+  errorMessage: { type: String, default: '' },
+  downloadBusy: Boolean,
+});
 defineEmits(['close', 'download']);
 
 const components = {
@@ -30,7 +34,7 @@ const unsupportedMessage = computed(() => {
     <header class="preview-header">
       <div><small>{{ state.entry.path }}</small><h2>{{ state.entry.name }}</h2></div>
       <div class="preview-header__actions">
-        <button v-if="policy.download" class="button button--ghost button--dark" @click="$emit('download', state.entry)"><AppIcon name="download" />下载</button>
+        <button v-if="policy.download" class="button button--ghost button--dark" :disabled="downloadBusy" @click="$emit('download', state.entry)"><AppIcon name="download" />{{ downloadBusy ? '下载中…' : '下载' }}</button>
         <button class="icon-button icon-button--dark" aria-label="关闭预览" @click="$emit('close')"><AppIcon name="close" :size="22" /></button>
       </div>
     </header>
@@ -39,7 +43,7 @@ const unsupportedMessage = computed(() => {
       <div v-else-if="state.error" class="state-panel state-panel--error">{{ errorMessage }}</div>
       <component :is="previewComponent" v-else-if="previewComponent && state.rawFile" :blob="state.rawFile.blob" :extension="state.descriptor.extension" :alt="state.entry.name" />
       <UnsupportedPreview v-else :message="unsupportedMessage">
-        <button v-if="policy.download" class="button button--primary" @click="$emit('download', state.entry)">下载文件</button>
+        <button v-if="policy.download" class="button button--primary" :disabled="downloadBusy" @click="$emit('download', state.entry)">{{ downloadBusy ? '下载中…' : '下载文件' }}</button>
       </UnsupportedPreview>
     </main>
   </div>

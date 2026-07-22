@@ -3,6 +3,7 @@ import {
   STORAGE_KEYS,
   loadToken,
   migrateLegacyStorage,
+  persistRepositoryConfiguration,
   saveToken,
 } from '@/services/config/configStorage.js';
 
@@ -41,5 +42,40 @@ describe('configuration storage', () => {
     expect(() => migrateLegacyStorage(blockedStorage)).toThrowError(
       expect.objectContaining({ code: 'CONFIG_STORAGE_BLOCKED' }),
     );
+  });
+
+  it('scrubs a legacy token even after migration was previously completed', () => {
+    localStorage.setItem(STORAGE_KEYS.migration, 'complete');
+    localStorage.setItem(STORAGE_KEYS.legacyConfig, JSON.stringify({ token: 'returned-secret' }));
+    migrateLegacyStorage(localStorage);
+    expect(localStorage.getItem(STORAGE_KEYS.legacyConfig)).toBeNull();
+  });
+
+  it('rolls back repository and token values when transactional persistence fails', () => {
+    localStorage.setItem(STORAGE_KEYS.repository, JSON.stringify({
+      schemaVersion: 2, owner: 'old', repo: 'repo', branch: 'main',
+    }));
+    localStorage.setItem(STORAGE_KEYS.localToken, 'old-token');
+    let failOnce = true;
+    const flakySessionStorage = {
+      values: new Map([[STORAGE_KEYS.sessionToken, 'old-session']]),
+      getItem(key) { return this.values.get(key) ?? null; },
+      setItem(key, value) {
+        if (failOnce) { failOnce = false; throw new Error('quota'); }
+        this.values.set(key, value);
+      },
+      removeItem(key) { this.values.delete(key); },
+    };
+
+    expect(() => persistRepositoryConfiguration(
+      localStorage,
+      flakySessionStorage,
+      { owner: 'new', repo: 'repo', branch: 'dev' },
+      'new-session',
+      false,
+    )).toThrowError(expect.objectContaining({ code: 'CONFIG_STORAGE_UNAVAILABLE' }));
+    expect(JSON.parse(localStorage.getItem(STORAGE_KEYS.repository)).owner).toBe('old');
+    expect(localStorage.getItem(STORAGE_KEYS.localToken)).toBe('old-token');
+    expect(flakySessionStorage.getItem(STORAGE_KEYS.sessionToken)).toBe('old-session');
   });
 });

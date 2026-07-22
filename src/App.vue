@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, reactive, ref, shallowRef } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import AppIcon from '@/components/common/AppIcon.vue';
 import AppToast from '@/components/common/AppToast.vue';
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
@@ -14,27 +14,30 @@ import UploadDialog from '@/components/upload/UploadDialog.vue';
 import { useFilePreview } from '@/composables/useFilePreview.js';
 import { useRepositoryBrowser } from '@/composables/useRepositoryBrowser.js';
 import { useRepositoryConfig } from '@/composables/useRepositoryConfig.js';
+import { useRepositoryMutations } from '@/composables/useRepositoryMutations.js';
+import { useRepositorySession } from '@/composables/useRepositorySession.js';
 import { useToast } from '@/composables/useToast.js';
 import { getErrorMessage } from '@/errors/errorMessages.js';
-import { GitHubStorageProvider } from '@/services/storage/GitHubStorageProvider.js';
 import { joinPath } from '@/utils/path.js';
 
 const configState = useRepositoryConfig();
 const browser = useRepositoryBrowser();
 const toast = useToast();
-const activeProvider = shallowRef(null);
+const session = useRepositorySession({ browser });
+const activeProvider = session.activeProvider;
 const preview = useFilePreview(() => activeProvider.value);
+session.setInvalidator(preview.dispose);
+const mutations = useRepositoryMutations({ getProvider: () => activeProvider.value, browser });
 const showConfig = ref(false);
 const configBusy = ref(false);
 const configError = ref('');
 const showUpload = ref(false);
 const showCreateFolder = ref(false);
-const mutationBusy = ref(false);
-const mutationStatus = ref('');
-const mutationError = ref('');
+const mutationBusy = session.mutationBusy;
+const mutationStatus = mutations.status;
+const mutationError = computed(() => mutations.error.value ? getErrorMessage(mutations.error.value) : '');
 const deleteTarget = ref(null);
-const rateLimit = reactive({ limit: null, remaining: null, resetAt: null });
-let unsubscribeQueue = null;
+const rateLimit = session.rateLimit;
 
 const loaded = computed(() => Boolean(activeProvider.value?.snapshot));
 const canMutate = computed(() => activeProvider.value?.capabilities.canMutate && !mutationBusy.value);
@@ -52,13 +55,6 @@ const deleteMessage = computed(() => {
   return `将删除文件“${deleteTarget.value.path}”。远端文件变化时操作会安全停止。`;
 });
 
-function attachQueue(provider) {
-  unsubscribeQueue?.();
-  unsubscribeQueue = provider.queue.subscribe((state) => {
-    mutationBusy.value = state.isBusy;
-  });
-}
-
 async function activateProvider({ config, token, remember }, persist = true) {
   if (activeProvider.value?.queue.isBusy) {
     configError.value = '仓库写操作进行中，暂时不能切换仓库。';
@@ -66,24 +62,18 @@ async function activateProvider({ config, token, remember }, persist = true) {
   }
   configBusy.value = true;
   configError.value = '';
-  const candidate = new GitHubStorageProvider({
-    config,
-    token,
-    onRateLimit: (state) => Object.assign(rateLimit, state),
-  });
   try {
-    await candidate.initialize();
-    if (persist) configState.persist({ config, nextToken: token, remember });
-    const previous = activeProvider.value;
-    activeProvider.value = candidate;
-    attachQueue(candidate);
-    await browser.attach(candidate, { initialized: true });
-    previous?.dispose();
+    await session.connect({
+      config,
+      token,
+      commit: persist
+        ? () => configState.persist({ config, nextToken: token, remember })
+        : undefined,
+    });
     showConfig.value = false;
     toast.show(token ? 'GitHub 仓库已连接' : '已以匿名只读模式连接公开仓库', 'success');
     return true;
   } catch (error) {
-    candidate.dispose();
     configError.value = getErrorMessage(error);
     showConfig.value = true;
     return false;
@@ -98,11 +88,14 @@ async function saveConfiguration(payload) {
 
 function resetConfiguration() {
   if (mutationBusy.value) return;
-  activeProvider.value?.dispose();
-  activeProvider.value = null;
-  browser.provider.value = null;
-  browser.entries.value = [];
-  configState.reset();
+  try {
+    configState.reset();
+  } catch (error) {
+    configError.value = getErrorMessage(error);
+    showConfig.value = true;
+    return;
+  }
+  session.disconnect();
   configError.value = '';
   showConfig.value = true;
 }
@@ -122,7 +115,9 @@ async function downloadEntry(entry) {
     await preview.download(entry);
     toast.show(`已开始下载：${entry.name}`, 'success');
   } catch (error) {
-    toast.show(getErrorMessage(error), 'error');
+    if (error.code !== 'ABORTED' && error.code !== 'SESSION_CHANGED') {
+      toast.show(getErrorMessage(error), 'error');
+    }
   }
 }
 
@@ -136,49 +131,42 @@ async function refreshRepository() {
 }
 
 async function submitUpload(command) {
-  mutationError.value = '';
-  mutationStatus.value = '正在读取文件并创建 GitHub commit…';
-  try {
-    await activeProvider.value.upload({ ...command, directory: browser.currentPath.value });
-    browser.sync();
+  const result = await mutations.upload(command, browser.currentPath.value);
+  if (result.ok) {
     showUpload.value = false;
     toast.show('文件上传成功', 'success');
-  } catch (error) {
-    mutationError.value = getErrorMessage(error);
-    toast.show(mutationError.value, error.applied ? 'warning' : 'error');
-    if (error.applied) await browser.refresh().catch(() => undefined);
-  } finally {
-    mutationStatus.value = '';
+  } else {
+    if (result.requiresAudit) showUpload.value = false;
+    toast.show(getErrorMessage(result.error), result.requiresAudit ? 'warning' : 'error');
   }
 }
 
 async function submitCreateFolder({ name, message }) {
-  mutationError.value = '';
-  try {
-    await activeProvider.value.createDirectory({ path: joinPath(browser.currentPath.value, name), message });
-    browser.sync();
+  const result = await mutations.createDirectory({
+    path: joinPath(browser.currentPath.value, name), message,
+  });
+  if (result.ok) {
     showCreateFolder.value = false;
     toast.show(`文件夹“${name}”已创建`, 'success');
-  } catch (error) {
-    mutationError.value = getErrorMessage(error);
+  } else {
+    if (result.requiresAudit) showCreateFolder.value = false;
+    toast.show(getErrorMessage(result.error), result.requiresAudit ? 'warning' : 'error');
   }
 }
 
 async function confirmDelete() {
   const entry = deleteTarget.value;
   if (!entry) return;
-  try {
-    if (entry.kind === 'directory') {
-      await activeProvider.value.deleteDirectory({ path: entry.path, message: `删除目录 ${entry.path}` });
-    } else {
-      await activeProvider.value.deleteFile({ path: entry.path, message: `删除 ${entry.name}` });
-    }
-    browser.sync();
+  const result = await mutations.remove(
+    entry,
+    entry.kind === 'directory' ? `删除目录 ${entry.path}` : `删除 ${entry.name}`,
+  );
+  if (result.ok) {
     deleteTarget.value = null;
     toast.show('删除操作已提交', 'success');
-  } catch (error) {
-    toast.show(getErrorMessage(error), error.applied ? 'warning' : 'error');
-    if (error.applied) deleteTarget.value = null;
+  } else {
+    toast.show(getErrorMessage(result.error), result.requiresAudit ? 'warning' : 'error');
+    if (result.requiresAudit) deleteTarget.value = null;
   }
 }
 
@@ -222,8 +210,8 @@ onMounted(async () => {
       <section class="toolbar">
         <BreadcrumbNav :path="browser.currentPath.value" :breadcrumbs="browser.breadcrumbs.value" @navigate="browser.navigate" @up="browser.goUp" />
         <div class="toolbar-actions">
-          <button class="button button--secondary" :disabled="!canMutate" :title="canMutate ? '' : '需要 PAT 才能写入'" @click="mutationError = ''; showCreateFolder = true"><AppIcon name="folder" />新建文件夹</button>
-          <button class="button button--primary" :disabled="!canMutate" :title="canMutate ? '' : '需要 PAT 才能写入'" @click="mutationError = ''; showUpload = true"><AppIcon name="upload" />上传文件</button>
+          <button class="button button--secondary" :disabled="!canMutate" :title="canMutate ? '' : '需要 PAT 才能写入'" @click="mutations.clearError(); showCreateFolder = true"><AppIcon name="folder" />新建文件夹</button>
+          <button class="button button--primary" :disabled="!canMutate" :title="canMutate ? '' : '需要 PAT 才能写入'" @click="mutations.clearError(); showUpload = true"><AppIcon name="upload" />上传文件</button>
         </div>
       </section>
 
@@ -236,6 +224,7 @@ onMounted(async () => {
         :error-message="browserError"
         :search-active="browser.searchActive.value"
         :can-mutate="canMutate"
+        :download-busy="preview.state.downloadBusy"
         @open="openEntry"
         @download="downloadEntry"
         @delete="deleteTarget = $event"
@@ -261,7 +250,7 @@ onMounted(async () => {
     <UploadDialog :open="showUpload" :busy="mutationBusy" :existing-names="browser.directoryNames()" :status="mutationStatus" :error="mutationError" @submit="submitUpload" @close="showUpload = false" />
     <CreateFolderDialog :open="showCreateFolder" :busy="mutationBusy" :error="mutationError" @submit="submitCreateFolder" @close="showCreateFolder = false" />
     <ConfirmDialog :open="Boolean(deleteTarget)" title="确认删除" :message="deleteMessage" confirm-text="确认删除" :busy="mutationBusy" danger @confirm="confirmDelete" @close="deleteTarget = null" />
-    <PreviewModal :state="preview.state" :error-message="previewError" @close="preview.close" @download="downloadEntry" />
+    <PreviewModal :state="preview.state" :error-message="previewError" :download-busy="preview.state.downloadBusy" @close="preview.close" @download="downloadEntry" />
     <AppToast :state="toast.state" @close="toast.close" />
   </div>
 </template>

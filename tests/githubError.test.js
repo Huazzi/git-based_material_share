@@ -16,5 +16,14 @@ describe('GitHub error mapping', () => {
     expect(mapGitHubError(responseError(404), { anonymousInitialize: true }).code)
       .toBe('REPOSITORY_NOT_FOUND_OR_PRIVATE');
     expect(mapGitHubError(responseError(422), { operation: 'update-ref' }).code).toBe('GIT_CONFLICT');
+    expect(mapGitHubError(responseError(409), { operation: 'delete-file' }).code).toBe('GIT_CONFLICT');
+    expect(mapGitHubError(responseError(422), { operation: 'upload' }).code).toBe('VALIDATION_FAILED');
+  });
+
+  it('marks a response-less mutation outcome as uncertain and non-retryable', () => {
+    const mapped = mapGitHubError(new Error('socket closed'), { operation: 'upload', mutation: true });
+    expect(mapped).toMatchObject({
+      code: 'MUTATION_RESULT_UNKNOWN', uncertain: true, applied: false, recoverable: false,
+    });
   });
 });

@@ -25,7 +25,49 @@ export function useRepositoryBrowser() {
       : provider.value.list(currentPath.value);
   }
 
+  function captureState() {
+    return {
+      currentPath: currentPath.value,
+      searchQuery: searchQuery.value,
+      searchActive: searchActive.value,
+    };
+  }
+
+  function attachInitialized(nextProvider) {
+    provider.value = nextProvider;
+    currentPath.value = '';
+    searchQuery.value = '';
+    searchActive.value = false;
+    error.value = null;
+    loading.value = false;
+    sync();
+  }
+
+  function restore(nextProvider, state) {
+    provider.value = nextProvider;
+    currentPath.value = state?.currentPath || '';
+    searchQuery.value = state?.searchQuery || '';
+    searchActive.value = Boolean(state?.searchActive);
+    error.value = null;
+    loading.value = false;
+    sync();
+  }
+
+  function detach() {
+    provider.value = null;
+    currentPath.value = '';
+    searchQuery.value = '';
+    searchActive.value = false;
+    entries.value = [];
+    error.value = null;
+    loading.value = false;
+  }
+
   async function attach(nextProvider, { initialized = false } = {}) {
+    if (initialized) {
+      attachInitialized(nextProvider);
+      return;
+    }
     provider.value = nextProvider;
     currentPath.value = '';
     searchQuery.value = '';
@@ -33,7 +75,7 @@ export function useRepositoryBrowser() {
     error.value = null;
     loading.value = true;
     try {
-      if (!initialized) await nextProvider.initialize();
+      await nextProvider.initialize();
       sync();
     } catch (caught) {
       error.value = caught;
@@ -97,6 +139,10 @@ export function useRepositoryBrowser() {
     searchQuery,
     searchActive,
     breadcrumbs,
+    captureState,
+    attachInitialized,
+    restore,
+    detach,
     attach,
     refresh,
     navigate,

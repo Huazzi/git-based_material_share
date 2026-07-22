@@ -3,8 +3,9 @@ import { useFilePreview } from '@/composables/useFilePreview.js';
 
 function deferred() {
   let resolve;
-  const promise = new Promise((done) => { resolve = done; });
-  return { promise, resolve };
+  let reject;
+  const promise = new Promise((done, fail) => { resolve = done; reject = fail; });
+  return { promise, resolve, reject };
 }
 
 describe('useFilePreview', () => {
@@ -22,5 +23,23 @@ describe('useFilePreview', () => {
     first.resolve({ path: 'a.md', blob: new Blob(['a']) });
     await openFirst;
     expect(preview.state.rawFile.path).toBe('b.md');
+  });
+
+  it('allows only one active download and aborts it when the session is disposed', async () => {
+    const pending = deferred();
+    const provider = {
+      readFile: (_path, { signal }) => {
+        signal.addEventListener('abort', () => pending.reject(Object.assign(new Error('aborted'), { code: 'ABORTED' })));
+        return pending.promise;
+      },
+    };
+    const preview = useFilePreview(() => provider);
+    const entry = { kind: 'file', name: 'large.bin', path: 'large.bin', size: 1 };
+    const first = preview.download(entry);
+    expect(preview.state.downloadBusy).toBe(true);
+    await expect(preview.download(entry)).rejects.toMatchObject({ code: 'DOWNLOAD_IN_PROGRESS' });
+    preview.dispose();
+    await expect(first).rejects.toMatchObject({ code: 'ABORTED' });
+    expect(preview.state.downloadBusy).toBe(false);
   });
 });

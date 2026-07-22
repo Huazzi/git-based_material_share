@@ -8,6 +8,7 @@ export class AppError extends Error {
     this.retryAt = options.retryAt ?? null;
     this.recoverable = options.recoverable ?? false;
     this.applied = options.applied ?? false;
+    this.uncertain = options.uncertain ?? false;
     this.commitSha = options.commitSha ?? null;
     this.requestId = options.requestId ?? null;
   }

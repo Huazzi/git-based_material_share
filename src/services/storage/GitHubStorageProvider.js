@@ -1,16 +1,16 @@
 import { FILE_LIMITS, getFilePolicy } from '@/constants/fileLimits.js';
 import { AppError, isAppError } from '@/errors/AppError.js';
-import { arrayBufferToBase64 } from '@/utils/base64.js';
 import { createAvailableFileName } from '@/utils/file.js';
 import { encodeRefPath, encodeRepositoryPath, getFileName, joinPath, normalizePath } from '@/utils/path.js';
 import { createGitHubClient } from '@/services/github/githubClient.js';
 import { mapGitHubError } from '@/services/github/githubError.js';
+import { GitHubMutationService } from '@/services/github/githubMutationService.js';
 import { MutationQueue } from '@/services/mutation/MutationQueue.js';
 import { RepositorySnapshot } from './RepositorySnapshot.js';
 import { StorageProvider } from './StorageProvider.js';
 
-function mutationType(entry) {
-  return entry.kind === 'submodule' ? 'commit' : 'blob';
+function responseHeader(headers, name) {
+  return headers?.get?.(name) ?? headers?.[name] ?? headers?.[name.toLowerCase()] ?? null;
 }
 
 export class GitHubStorageProvider extends StorageProvider {
@@ -22,6 +22,12 @@ export class GitHubStorageProvider extends StorageProvider {
     this.snapshot = null;
     this.queue = new MutationQueue();
     this.disposed = false;
+    this.activeReadControllers = new Set();
+    this.mutations = new GitHubMutationService({
+      request: (...args) => this.#request(...args),
+      basePath: this.basePath,
+      branch: this.config.branch,
+    });
   }
 
   get basePath() {
@@ -87,6 +93,7 @@ export class GitHubStorageProvider extends StorageProvider {
   }
 
   #requireSnapshot() {
+    if (this.disposed) throw new AppError('SESSION_CHANGED', 'Provider has been disposed.');
     if (!this.snapshot) throw new AppError('SESSION_CHANGED', 'Repository is not initialized.');
     return this.snapshot;
   }
@@ -100,6 +107,21 @@ export class GitHubStorageProvider extends StorageProvider {
   search(query) { return this.#requireSnapshot().search(query); }
   stat(path) { return this.#requireSnapshot().stat(path); }
 
+  #createReadController(externalSignal) {
+    const controller = new AbortController();
+    const abort = () => controller.abort(externalSignal?.reason);
+    if (externalSignal?.aborted) abort();
+    else externalSignal?.addEventListener('abort', abort, { once: true });
+    this.activeReadControllers.add(controller);
+    return {
+      controller,
+      release: () => {
+        externalSignal?.removeEventListener('abort', abort);
+        this.activeReadControllers.delete(controller);
+      },
+    };
+  }
+
   async readFile(path, { purpose = 'preview', signal, snapshot = this.#requireSnapshot() } = {}) {
     const normalized = normalizePath(path);
     const entry = snapshot.stat(normalized);
@@ -112,16 +134,42 @@ export class GitHubStorageProvider extends StorageProvider {
       throw new AppError('DOWNLOAD_TOO_LARGE', 'Download size policy rejected the file.');
     }
 
-    const response = await this.#request('get', `${this.basePath}/contents/${encodeRepositoryPath(normalized)}`, {
-      signal,
-      params: { ref: snapshot.commitSha },
-      responseType: 'blob',
-      headers: { Accept: 'application/vnd.github.raw+json' },
-    }, { operation: `read-${purpose}` });
+    const maximum = purpose === 'preview' ? FILE_LIMITS.preview : FILE_LIMITS.download;
+    const { controller, release } = this.#createReadController(signal);
+    let exceeded = false;
+    let response;
+    try {
+      response = await this.#request('get', `${this.basePath}/contents/${encodeRepositoryPath(normalized)}`, {
+        signal: controller.signal,
+        params: { ref: snapshot.commitSha },
+        responseType: 'blob',
+        headers: { Accept: 'application/vnd.github.raw+json' },
+        onDownloadProgress: ({ loaded = 0, total }) => {
+          if (loaded > maximum || (Number.isFinite(total) && total > maximum)) {
+            exceeded = true;
+            controller.abort();
+          }
+        },
+      }, { operation: `read-${purpose}` });
+    } catch (error) {
+      if (exceeded) {
+        throw new AppError(purpose === 'preview' ? 'PREVIEW_TOO_LARGE' : 'DOWNLOAD_TOO_LARGE',
+          'Transfer exceeded size policy.');
+      }
+      throw error;
+    } finally {
+      release();
+    }
+    if (this.disposed) throw new AppError('SESSION_CHANGED', 'Provider changed while reading.');
+    const contentLengthHeader = responseHeader(response.headers, 'content-length');
+    const contentLength = contentLengthHeader === null ? Number.NaN : Number(contentLengthHeader);
+    if (Number.isFinite(contentLength) && contentLength > maximum) {
+      throw new AppError(purpose === 'preview' ? 'PREVIEW_TOO_LARGE' : 'DOWNLOAD_TOO_LARGE',
+        'Content-Length exceeds size policy.');
+    }
     const blob = response.data instanceof Blob
       ? response.data
-      : new Blob([response.data], { type: response.headers?.['content-type'] || 'application/octet-stream' });
-    const maximum = purpose === 'preview' ? FILE_LIMITS.preview : FILE_LIMITS.download;
+      : new Blob([response.data], { type: responseHeader(response.headers, 'content-type') || 'application/octet-stream' });
     if (blob.size > maximum) {
       throw new AppError(purpose === 'preview' ? 'PREVIEW_TOO_LARGE' : 'DOWNLOAD_TOO_LARGE', 'Received file exceeds size policy.');
     }
@@ -130,7 +178,7 @@ export class GitHubStorageProvider extends StorageProvider {
       path: normalized,
       name: entry.name,
       size: blob.size,
-      contentType: blob.type || response.headers?.['content-type'] || 'application/octet-stream',
+      contentType: blob.type || responseHeader(response.headers, 'content-type') || 'application/octet-stream',
     };
   }
 
@@ -165,16 +213,10 @@ export class GitHubStorageProvider extends StorageProvider {
         existing = null;
       }
       if (existing?.kind !== 'file' && existing) throw new AppError('GIT_CONFLICT', 'Target path is not a file.');
-      const payload = {
-        message: message?.trim() || `上传 ${targetName}`,
-        content: arrayBufferToBase64(await file.arrayBuffer()),
-        branch: this.config.branch,
-      };
-      if (existing && conflict === 'overwrite') payload.sha = existing.sha;
-      const response = await this.#request('put', `${this.basePath}/contents/${encodeRepositoryPath(targetPath)}`, {
-        data: payload,
-      }, { operation: 'upload' });
-      return this.#refreshAfterMutation(response.data.commit.sha, targetPath);
+      const commitSha = await this.mutations.upload({
+        path: targetPath, file, name: targetName, message, existing, conflict,
+      });
+      return this.#refreshAfterMutation(commitSha, targetPath);
     });
   }
 
@@ -186,14 +228,10 @@ export class GitHubStorageProvider extends StorageProvider {
       await this.refresh();
       if (this.snapshot.stat(normalized)) throw new AppError('GIT_CONFLICT', 'Directory already exists.');
       const keepPath = joinPath(normalized, '.gitkeep');
-      const response = await this.#request('put', `${this.basePath}/contents/${encodeRepositoryPath(keepPath)}`, {
-        data: {
-          message: message?.trim() || `创建目录 ${normalized}`,
-          content: '',
-          branch: this.config.branch,
-        },
-      }, { operation: 'create-directory' });
-      return this.#refreshAfterMutation(response.data.commit.sha, normalized);
+      const commitSha = await this.mutations.createDirectory({
+        keepPath, directoryPath: normalized, message,
+      });
+      return this.#refreshAfterMutation(commitSha, normalized);
     });
   }
 
@@ -205,14 +243,8 @@ export class GitHubStorageProvider extends StorageProvider {
       await this.refresh();
       const entry = this.snapshot.stat(normalized);
       if (!entry || entry.kind !== 'file') throw new AppError('RESOURCE_NOT_FOUND', 'File no longer exists.');
-      const response = await this.#request('delete', `${this.basePath}/contents/${encodeRepositoryPath(normalized)}`, {
-        data: {
-          message: message?.trim() || `删除 ${entry.name}`,
-          sha: entry.sha,
-          branch: this.config.branch,
-        },
-      }, { operation: 'delete-file' });
-      return this.#refreshAfterMutation(response.data.commit.sha, normalized);
+      const commitSha = await this.mutations.deleteFile({ path: normalized, entry, message });
+      return this.#refreshAfterMutation(commitSha, normalized);
     });
   }
 
@@ -229,33 +261,17 @@ export class GitHubStorageProvider extends StorageProvider {
       }
       const leaves = fresh.descendantLeaves(normalized);
       if (!leaves.length) throw new AppError('VALIDATION_FAILED', 'Directory contains no deletable entries.');
-      const newTree = await this.#request('post', `${this.basePath}/git/trees`, {
-        data: {
-          base_tree: fresh.treeSha,
-          tree: leaves.map((entry) => ({
-            path: entry.path,
-            mode: entry.mode,
-            type: mutationType(entry),
-            sha: null,
-          })),
-        },
-      }, { operation: 'create-delete-tree' });
-      const commit = await this.#request('post', `${this.basePath}/git/commits`, {
-        data: {
-          message: message?.trim() || `删除目录 ${normalized}`,
-          tree: newTree.data.sha,
-          parents: [fresh.commitSha],
-        },
-      }, { operation: 'create-delete-commit' });
-      await this.#request('patch', `${this.basePath}/git/refs/heads/${encodeRefPath(this.config.branch)}`, {
-        data: { sha: commit.data.sha, force: false },
-      }, { operation: 'update-ref' });
-      return this.#refreshAfterMutation(commit.data.sha, normalized);
+      const commitSha = await this.mutations.deleteDirectory({
+        snapshot: fresh, path: normalized, leaves, message,
+      });
+      return this.#refreshAfterMutation(commitSha, normalized);
     });
   }
 
   dispose() {
     this.disposed = true;
+    this.activeReadControllers.forEach((controller) => controller.abort());
+    this.activeReadControllers.clear();
     this.queue.close();
     this.snapshot = null;
   }

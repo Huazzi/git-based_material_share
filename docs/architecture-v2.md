@@ -21,7 +21,7 @@ Vue components
 
 ## 写操作
 
-一个 provider 只拥有一个 `MutationQueue`。上传、建目录、删除文件和删除目录都在队列内重新读取必要的远端状态。失败任务不会阻塞后续任务，网络失败或超时不会触发自动重试。
+一个 provider 只拥有一个 `MutationQueue`。上传、建目录、删除文件和删除目录都在队列内重新读取必要的远端状态。失败任务不会阻塞后续任务，网络失败或超时不会触发自动重试。写请求在没有收到响应时进入“结果不确定”状态，原命令会被关闭并要求刷新核验。
 
 目录删除按以下步骤生成一个原子提交：
 
@@ -40,7 +40,7 @@ PDF、DOCX 与代码预览独立拆包；PDF worker 从本地构建产物加载�
 
 ## 配置迁移
 
-V2 使用版本化的 repository、preferences、session token、remembered token 与 migration key。旧配置仅迁移合法 GitHub owner/repo/branch 和 list/grid 偏好；旧 PAT 必须删除或覆盖为非敏感字段，否则阻止初始化并提示用户清理站点数据。
+V2 使用版本化的 repository、preferences、session token、remembered token 与 migration key。仓库与令牌以可回滚事务写入，全部成功后才切换活动 provider。旧配置仅迁移合法 GitHub owner/repo/branch 和 list/grid 偏好；每次启动都会再次清理可能由回滚版本产生的旧 PAT，删除或覆盖失败时阻止初始化。
 
 ## 错误边界
 

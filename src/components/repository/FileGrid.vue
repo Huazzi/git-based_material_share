@@ -3,7 +3,7 @@ import AppIcon from '@/components/common/AppIcon.vue';
 import FileItemActions from './FileItemActions.vue';
 import { formatFileSize } from '@/utils/format.js';
 
-defineProps({ entries: { type: Array, default: () => [] }, canMutate: Boolean });
+defineProps({ entries: { type: Array, default: () => [] }, canMutate: Boolean, downloadBusy: Boolean });
 defineEmits(['open', 'download', 'delete']);
 </script>
 
@@ -13,7 +13,7 @@ defineEmits(['open', 'download', 'delete']);
       <span class="file-card__icon" :class="`file-symbol--${entry.kind}`"><AppIcon :name="entry.kind === 'directory' ? 'folder' : 'file'" :size="38" /></span>
       <strong>{{ entry.name }}</strong>
       <small>{{ entry.kind === 'file' ? formatFileSize(entry.size) : entry.kind }}</small>
-      <FileItemActions :entry="entry" :can-mutate="canMutate" @download="$emit('download', $event)" @delete="$emit('delete', $event)" />
+      <FileItemActions :entry="entry" :can-mutate="canMutate" :download-busy="downloadBusy" @download="$emit('download', $event)" @delete="$emit('delete', $event)" />
     </article>
   </div>
 </template>

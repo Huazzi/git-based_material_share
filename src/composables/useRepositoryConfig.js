@@ -5,9 +5,8 @@ import {
   loadRepositoryConfig,
   loadToken,
   migrateLegacyStorage,
+  persistRepositoryConfiguration,
   savePreferences,
-  saveRepositoryConfig,
-  saveToken,
 } from '@/services/config/configStorage.js';
 
 export function useRepositoryConfig() {
@@ -35,10 +34,12 @@ export function useRepositoryConfig() {
   }
 
   function persist({ config, nextToken, remember }) {
-    repository.value = saveRepositoryConfig(localStorage, config);
-    saveToken(localStorage, sessionStorage, nextToken, remember);
-    token.value = nextToken.trim();
-    rememberToken.value = remember;
+    const saved = persistRepositoryConfiguration(
+      localStorage, sessionStorage, config, nextToken, remember,
+    );
+    repository.value = saved.repository;
+    token.value = saved.token;
+    rememberToken.value = saved.remember;
   }
 
   function setView(view) {

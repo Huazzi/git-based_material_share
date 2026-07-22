@@ -14,18 +14,18 @@ export function createGitHubClient({ token = '', onRateLimit } = {}) {
 
   if (token) client.defaults.headers.common.Authorization = `Bearer ${token}`;
 
-  const updateRateLimit = (response) => {
-    const state = tracker.update(response?.headers);
+  const updateRateLimit = (headers) => {
+    const state = tracker.update(headers);
     onRateLimit?.(state);
   };
 
   client.interceptors.response.use(
     (response) => {
-      updateRateLimit(response);
+      updateRateLimit(response.headers);
       return response;
     },
     (error) => {
-      updateRateLimit(error?.response);
+      updateRateLimit(error?.response?.headers);
       return Promise.reject(mapGitHubError(error, error?.config?.metadata));
     },
   );

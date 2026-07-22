@@ -5,9 +5,11 @@ function header(headers, name) {
 }
 
 function retryAtFrom(headers) {
-  const retryAfter = Number(header(headers, 'retry-after'));
+  const retryAfterHeader = header(headers, 'retry-after');
+  const retryAfter = retryAfterHeader === null ? Number.NaN : Number(retryAfterHeader);
   if (Number.isFinite(retryAfter)) return new Date(Date.now() + retryAfter * 1000);
-  const reset = Number(header(headers, 'x-ratelimit-reset'));
+  const resetHeader = header(headers, 'x-ratelimit-reset');
+  const reset = resetHeader === null ? Number.NaN : Number(resetHeader);
   return Number.isFinite(reset) ? new Date(reset * 1000) : null;
 }
 
@@ -27,6 +29,11 @@ export function mapGitHubError(error, context = {}) {
     requestId: header(headers, 'x-github-request-id'),
   };
 
+  if (!status && context.mutation) {
+    return new AppError('MUTATION_RESULT_UNKNOWN', 'Mutation outcome is unknown.', {
+      ...options, uncertain: true, recoverable: false,
+    });
+  }
   if (!status) return new AppError('NETWORK_ERROR', 'Network request failed.', { ...options, recoverable: true });
   if (status === 401) return new AppError('AUTH_INVALID', 'GitHub rejected the token.', options);
   if ((status === 403 || status === 429) && remainingHeader !== null && Number(remainingHeader) === 0) {

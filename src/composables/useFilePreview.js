@@ -2,6 +2,7 @@ import { reactive } from 'vue';
 import { getFilePolicy } from '@/constants/fileLimits.js';
 import { resolvePreview } from '@/services/preview/previewRegistry.js';
 import { downloadBlob } from '@/utils/download.js';
+import { AppError } from '@/errors/AppError.js';
 
 export function useFilePreview(getProvider) {
   const state = reactive({
@@ -11,9 +12,13 @@ export function useFilePreview(getProvider) {
     descriptor: null,
     loading: false,
     error: null,
+    downloadBusy: false,
+    downloadEntry: null,
   });
   let controller = null;
   let epoch = 0;
+  let downloadController = null;
+  let downloadEpoch = 0;
 
   function cancelActiveRequest() {
     controller?.abort();
@@ -58,9 +63,40 @@ export function useFilePreview(getProvider) {
   }
 
   async function download(entry) {
-    const rawFile = await getProvider().readFile(entry.path, { purpose: 'download' });
-    downloadBlob(rawFile.blob, entry.name);
+    if (state.downloadBusy) {
+      throw new AppError('DOWNLOAD_IN_PROGRESS', 'Another download is already active.');
+    }
+    const requestEpoch = ++downloadEpoch;
+    downloadController = new AbortController();
+    state.downloadBusy = true;
+    state.downloadEntry = entry;
+    try {
+      const rawFile = await getProvider().readFile(entry.path, {
+        purpose: 'download', signal: downloadController.signal,
+      });
+      if (requestEpoch !== downloadEpoch) throw new AppError('ABORTED', 'Download aborted.');
+      downloadBlob(rawFile.blob, entry.name);
+    } finally {
+      if (requestEpoch === downloadEpoch) {
+        downloadController = null;
+        state.downloadBusy = false;
+        state.downloadEntry = null;
+      }
+    }
   }
 
-  return { state, open, close, download };
+  function cancelDownload() {
+    downloadEpoch += 1;
+    downloadController?.abort();
+    downloadController = null;
+    state.downloadBusy = false;
+    state.downloadEntry = null;
+  }
+
+  function dispose() {
+    close();
+    cancelDownload();
+  }
+
+  return { state, open, close, download, cancelDownload, dispose };
 }

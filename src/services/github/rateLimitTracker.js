@@ -7,10 +7,15 @@ export class RateLimitTracker {
   }
 
   update(headers = {}) {
-    const limit = Number(headers['x-ratelimit-limit']);
-    const remaining = Number(headers['x-ratelimit-remaining']);
-    const reset = Number(headers['x-ratelimit-reset']);
-    const retryAfter = Number(headers['retry-after']);
+    const read = (name) => headers?.get?.(name) ?? headers?.[name] ?? headers?.[name.toLowerCase()];
+    const number = (name) => {
+      const value = read(name);
+      return value === null || value === undefined || value === '' ? Number.NaN : Number(value);
+    };
+    const limit = number('x-ratelimit-limit');
+    const remaining = number('x-ratelimit-remaining');
+    const reset = number('x-ratelimit-reset');
+    const retryAfter = number('retry-after');
     if (Number.isFinite(limit)) this.limit = limit;
     if (Number.isFinite(remaining)) this.remaining = remaining;
     if (Number.isFinite(reset)) this.resetAt = new Date(reset * 1000);
