@@ -29,4 +29,17 @@ describe('configuration storage', () => {
     expect(sessionStorage.getItem(STORAGE_KEYS.sessionToken)).toBeNull();
     expect(loadToken(localStorage, sessionStorage)).toEqual({ token: 'remembered-token', remember: true });
   });
+
+  it('blocks initialization when a legacy token cannot be removed or overwritten', () => {
+    const blockedStorage = {
+      getItem: (key) => key === STORAGE_KEYS.legacyConfig
+        ? JSON.stringify({ platform: 'github', owner: 'o', repo: 'r', token: 'secret' })
+        : null,
+      removeItem: () => { throw new Error('blocked'); },
+      setItem: () => { throw new Error('blocked'); },
+    };
+    expect(() => migrateLegacyStorage(blockedStorage)).toThrowError(
+      expect.objectContaining({ code: 'CONFIG_STORAGE_BLOCKED' }),
+    );
+  });
 });

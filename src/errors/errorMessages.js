@@ -16,6 +16,7 @@ const MESSAGES = {
   GITHUB_UNAVAILABLE: 'GitHub 服务暂时不可用，请稍后重试。',
   MUTATION_APPLIED_REFRESH_FAILED: '操作已提交，但文件列表刷新失败。请手动刷新。',
   CONFIG_STORAGE_BLOCKED: '无法安全清除旧令牌。请清除此站点数据，并在 GitHub 撤销旧令牌。',
+  CONFIG_STORAGE_UNAVAILABLE: '浏览器存储不可用，无法保存仓库配置。',
   UNKNOWN: '发生未知错误，请重试。',
 };
 

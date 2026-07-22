@@ -63,18 +63,30 @@ export function migrateLegacyStorage(localStorage) {
     ? normalizeRepositoryConfig(legacy)
     : null;
 
-  if (repository) {
-    localStorage.setItem(STORAGE_KEYS.repository, JSON.stringify(repository));
-  }
-  if (legacyView === 'list' || legacyView === 'grid') {
-    localStorage.setItem(STORAGE_KEYS.preferences, JSON.stringify({ view: legacyView }));
+  let writeError = null;
+  try {
+    if (repository) {
+      localStorage.setItem(STORAGE_KEYS.repository, JSON.stringify(repository));
+    }
+    if (legacyView === 'list' || legacyView === 'grid') {
+      localStorage.setItem(STORAGE_KEYS.preferences, JSON.stringify({ view: legacyView }));
+    }
+  } catch (error) {
+    writeError = error;
   }
 
   if (!clearLegacyConfig(localStorage, repository)) {
     throw new AppError('CONFIG_STORAGE_BLOCKED', 'Legacy token could not be removed.');
   }
 
-  localStorage.setItem(STORAGE_KEYS.migration, 'complete');
+  try {
+    localStorage.setItem(STORAGE_KEYS.migration, 'complete');
+  } catch (error) {
+    writeError ||= error;
+  }
+  if (writeError) {
+    throw new AppError('CONFIG_STORAGE_UNAVAILABLE', 'Browser storage is unavailable.');
+  }
   return {
     migrated: Boolean(legacy),
     repository,
