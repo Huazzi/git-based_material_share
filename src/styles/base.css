@@ -1,0 +1,49 @@
+:root {
+  color: #263247;
+  background: #f2f4f8;
+  font-family: Inter, "Segoe UI", "Microsoft YaHei", sans-serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  --color-primary: #4a6baf;
+  --color-primary-dark: #38558f;
+  --color-surface: #ffffff;
+  --color-background: #f2f4f8;
+  --color-text: #263247;
+  --color-muted: #667085;
+  --color-border: #dfe4ec;
+  --color-danger: #c73d4d;
+  --color-warning: #b7791f;
+  --color-success: #2f855a;
+  --shadow-card: 0 8px 28px rgb(31 45 61 / 10%);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  min-height: 100%;
+  margin: 0;
+}
+
+body {
+  min-width: 320px;
+  background: var(--color-background);
+}
+
+button,
+input,
+select {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
