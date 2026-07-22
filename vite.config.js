@@ -9,11 +9,6 @@ export default defineConfig({
       '@': fileURLToPath(new URL('./src', import.meta.url)),
     },
   },
-  build: {
-    rollupOptions: {
-      input: fileURLToPath(new URL('./v2.html', import.meta.url)),
-    },
-  },
   test: {
     environment: 'jsdom',
     include: ['tests/**/*.test.js'],

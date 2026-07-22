@@ -1,111 +1,75 @@
-# 资料共享站
+# 资料共享站 V2
 
-> [!note]
-> 利用 GitHub 天然的高可用、版本化和 REST API 能力，实现一个面向个人和小规模场景的轻量级跨设备文件 Hub。
+资料共享站是一个纯前端的 GitHub 文件 Hub。它将仓库目录固定到一次提交快照，在浏览器中完成资料浏览、搜索、预览、下载以及授权后的上传、建目录和删除操作。
 
-## 特点
+## 功能
 
-- **纯前端**: 无需服务器部署，可直接托管在 GitHub Pages, Gitee Pages 或其他静态网站托管平台。
-- **GitHub/Gitee 集成**: 直接使用 GitHub/Gitee 作为文件存储和 API 服务。
-- **文件浏览**: 以列表形式展示仓库中的文件和文件夹，支持目录导航。
-- **文件预览**:
-    - PDF (.pdf)
-    - Word 文档 (.docx)
-    - Markdown (.md)
-    - 常见图片格式 (.png, .jpg, .gif, etc.)
-    - 代码文件 (多种语言语法高亮)
-    - 纯文本文件 (.txt, .log, etc.)
-- **文件上传**: 支持将文件上传到当前浏览的仓库目录。
-- **响应式设计**: 基础的响应式布局，适应不同屏幕尺寸。
-- **配置持久化**: 仓库配置信息存储在浏览器 `localStorage` 中。
+- GitHub-only：不依赖自建后端或 API 代理。
+- 公共仓库可匿名只读；写操作必须提供具备最小权限的 fine-grained PAT。
+- 一次拉取 Git Tree 后在本地完成目录导航和文件名搜索。
+- 支持列表/网格视图、面包屑、上传、新建目录、文件删除和原子目录删除。
+- 支持 PDF、DOCX、Markdown、图片、视频、代码与文本预览；HTML 始终按源码展示。
+- Markdown、DOCX、SVG 和高亮 HTML 统一经过白名单清洗。
+- PAT 默认只保存在当前标签页会话；用户可明确选择在本设备记住。
 
-## 技术栈
+## 文件限制
 
-- **核心框架**: Vue.js 3 (Composition API)
-- **HTTP 请求**: Axios (也可使用 Fetch API)
-- **样式**: 原生 CSS3 (Flexbox/Grid)
-- **文件预览库**:
-    - PDF.js: PDF 预览
-    - Mammoth.js: .docx 转 HTML 预览
-    - Marked.js: Markdown 转 HTML 预览
-    - Prism.js: 代码语法高亮
-- **数据存储**: 浏览器 `localStorage` (用于存储用户配置)
+| 操作 | 限制 |
+| --- | --- |
+| 上传 | 最大 25 MiB |
+| 在线预览 | 最大 25 MiB |
+| 下载 | 最大 100 MiB |
 
-## 文件结构
+25 MiB 以上、100 MiB 以内的文件仅允许下载；超过 100 MiB 的文件不支持读取。GitHub API 自身的限制仍然适用。
 
-```
-/
-├── index.html
-├── style.css
-├── app.js
-├── utils.js
-└── README.md
+## 本地开发
+
+要求 Node.js `>=22.13.0`。
+
+```powershell
+npm ci
+npm run dev
 ```
 
-## 安装与运行
+请通过 Vite 提供的本地地址访问应用，不能再直接双击 `index.html` 运行。
 
-1.  **下载文件**:
-    将 `index.html`, `style.css`, `app.js`, 和 `utils.js` 文件下载到你的本地计算机的同一个目录下。
+其他命令：
 
-2.  **获取 Personal Access Token (PAT)**:
-    你需要在 GitHub 或 Gitee 上创建一个 PAT，用于授权应用访问你的仓库。
-    -   **GitHub PAT**:
-        1.  登录 GitHub。
-        2.  前往 `Settings` > `Developer settings` > `Personal access tokens` > `Tokens (classic)`。
-        3.  点击 `Generate new token` (或 `Generate new token (classic)`)。
-        4.  给 Token 一个描述性的名字。
-        5.  在 `Select scopes` 中，至少勾选 `repo` (Full control of private repositories) 权限。对于公开仓库，可能只需要 `public_repo`。
-        6.  点击 `Generate token` 并复制生成的 Token。**注意：这个 Token 只会显示一次，请妥善保管。**
-    -   **Gitee PAT**:
-        1.  登录 Gitee。
-        2.  前往 `头像` > `设置` > `安全设置` > `个人访问令牌`。
-        3.  点击 `+生成新令牌`。
-        4.  给 Token 一个描述性的名字。
-        5.  在权限范围 (Scopes) 中，至少选择 `projects` (仓库管理)。
-        6.  点击 `提交` 并复制生成的 Token。
+```powershell
+npm run test
+npm run build
+npm run preview
+```
 
-3.  **打开应用**:
-    用现代浏览器 (如 Chrome, Firefox, Edge, Safari) 打开本地的 `index.html` 文件。
+## 仓库配置
 
-4.  **配置仓库**:
-    -   应用首次加载时，会弹出一个"仓库配置"对话框。
-    -   **平台**: 选择 `GitHub` 或 `Gitee`。
-    -   **用户名/组织名**: 输入你的 GitHub/Gitee 用户名，或者仓库所属的组织名。
-    -   **仓库名**: 输入你想要访问的仓库的名称。
-    -   **分支**: 输入仓库的分支，通常是 `main` 或 `master`。
-    -   **Personal Access Token (PAT)**: 粘贴你在步骤 2 中获取到的 PAT。
-    -   点击 "保存并加载"。
+首次打开时填写 GitHub owner、repository 和 branch。
 
-5.  **开始使用**:
-    如果配置正确，你将看到仓库根目录的文件和文件夹列表。你可以：
-    -   点击文件夹进入。
-    -   点击文件进行预览。
-    -   使用 "上传文件" 按钮上传新文件到当前目录。
+- 公开仓库只读：PAT 留空。
+- 私有仓库或写操作：使用 fine-grained PAT，并仅授予目标仓库所需的 Contents 读取或读写权限。
+- “在此设备记住访问令牌”默认关闭。关闭时 PAT 使用 `sessionStorage`；开启后才会写入 `localStorage`。
+- 从 V1 迁移时只保留有效的 GitHub 仓库信息和视图偏好，旧 PAT 不会迁移，必须重新输入。
 
-## 安全提示
+应用不支持空仓库，也不会代表用户初始化仓库。GitHub 返回截断 Tree 时会停止加载，避免在不完整目录上执行写操作。
 
-- **PAT 安全**: Personal Access Token (PAT) 非常敏感。它授予了对你仓库的访问权限。
-    -   **最小权限原则**: 创建 PAT 时，仅授予应用所需的最小权限。
-    -   **浏览器存储**: 本应用将 PAT 存储在浏览器的 `localStorage` 中。虽然方便，但这通常不被认为是高度安全的方式，尤其是在共享计算机上。请自行承担风险。
-    -   **HTTPS**: 如果你将此应用部署到线上，请务必使用 HTTPS，以保护 PAT 在传输过程中的安全。
-    -   **定期更换**: 定期更换你的 PAT。
-    -   **不共享配置**: 不要在不信任的环境中使用或共享保存了敏感 PAT 的浏览器配置文件。
+## 部署
 
-## 未来可能的改进 (基于设计文档)
+项目以 Netlify 为主要部署目标：
 
-- 网格视图模式切换
-- 文件下载功能
-- 创建新文件夹
-- 用户偏好设置 (如主题切换)
-- 更高级的缓存策略以提高性能
-- 拖拽上传
-- 多文件上传
-- 完整的 i18n 国际化支持
+1. 将仓库连接到 Netlify。
+2. 构建命令使用 `npm run build`。
+3. 发布目录使用 `dist`。
 
-## 贡献
+仓库中的 `netlify.toml` 已包含构建配置、SPA fallback 与基础安全响应头。生产站点必须使用 HTTPS。
 
-欢迎提出改进意见或参与贡献！
+## 架构与安全
 
-## 许可
+- [V2 架构说明](docs/architecture-v2.md)
+- [安全策略与令牌说明](SECURITY.md)
+- [改造需求基线](项目改造方案.md)
 
-本项目代码基于 MIT 许可发布。 
+V1 的《需求分析报告》仅作为历史资料保存；冲突处以《项目改造方案.md》和当前文档为准。
+
+## 许可证
+
+MIT

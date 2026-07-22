@@ -85,7 +85,9 @@ async function load(blob) {
     pdfDocument = await loadingTask.promise;
     if (runGeneration !== generation) return;
     pages.value = Array.from({ length: pdfDocument.numPages }, (_, index) => index + 1);
+    loading.value = false;
     await nextTick();
+    if (runGeneration !== generation) return;
     observePages(runGeneration);
   } catch (caught) {
     if (runGeneration === generation) error.value = `PDF 加载失败：${caught.message}`;
