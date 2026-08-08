@@ -22,6 +22,7 @@ import { useRepositorySession } from '@/composables/useRepositorySession.js';
 import { useRepositorySelection } from '@/composables/useRepositorySelection.js';
 import { useToast } from '@/composables/useToast.js';
 import { getErrorMessage } from '@/errors/errorMessages.js';
+import { formatFileSize } from '@/utils/format.js';
 import { joinPath } from '@/utils/path.js';
 
 const configState = useRepositoryConfig();
@@ -50,6 +51,7 @@ const deleteTarget = ref(null);
 const rateLimit = session.rateLimit;
 
 const loaded = computed(() => Boolean(activeProvider.value?.snapshot));
+const hasWriteAccess = computed(() => Boolean(activeProvider.value?.capabilities.canMutate));
 const canMutate = computed(() => activeProvider.value?.capabilities.canMutate && !mutationBusy.value);
 const browserError = computed(() => browser.error.value ? getErrorMessage(browser.error.value) : '');
 const previewError = computed(() => preview.state.error ? getErrorMessage(preview.state.error) : '');
@@ -60,6 +62,19 @@ const downloadBusy = computed(() => preview.state.downloadBusy
 const repositoryLabel = computed(() => configState.repository.value
   ? `${configState.repository.value.owner}/${configState.repository.value.repo} · ${configState.repository.value.branch}`
   : 'GitHub Material Hub');
+const repositoryName = computed(() => configState.repository.value
+  ? `${configState.repository.value.owner}/${configState.repository.value.repo}`
+  : 'GitHub Material Hub');
+const branchName = computed(() => configState.repository.value?.branch || '—');
+const repositoryStats = computed(() => {
+  const entries = activeProvider.value?.snapshot?.allEntries() || [];
+  const files = entries.filter((entry) => entry.kind === 'file');
+  return {
+    files: files.length,
+    directories: entries.filter((entry) => entry.kind === 'directory').length,
+    size: formatFileSize(files.reduce((total, entry) => total + (entry.size || 0), 0)),
+  };
+});
 const deleteMessage = computed(() => {
   if (!deleteTarget.value) return '';
   if (deleteTarget.value.kind === 'directory') {
@@ -227,6 +242,7 @@ onMounted(async () => {
       :loaded="loaded"
       :search-value="browser.searchQuery.value"
       :view="configState.preferences.view"
+      :can-mutate="hasWriteAccess"
       @settings="showConfig = true"
       @toggle-view="toggleView"
       @update:search-value="browser.searchQuery.value = $event"
@@ -234,58 +250,78 @@ onMounted(async () => {
     />
 
     <main v-if="loaded" class="main-content">
-      <section class="repository-summary">
+      <section class="repository-summary" aria-labelledby="repository-title">
         <svg class="git-graph" viewBox="0 0 120 200" aria-hidden="true" focusable="false">
-          <path d="M30 0 V200" fill="none" stroke="#b9c9e8" stroke-width="2"/>
-          <path d="M30 78 C30 58 80 62 80 42 V18 M80 118 C80 98 30 102 30 122" fill="none" stroke="#9fd3ac" stroke-width="2"/>
-          <circle cx="30" cy="30" r="6" fill="#fff" stroke="#2e5aac" stroke-width="2.5"/>
-          <circle cx="80" cy="18" r="5" fill="#fff" stroke="#1f883d" stroke-width="2.5"/>
-          <circle cx="30" cy="78" r="6" fill="#fff" stroke="#2e5aac" stroke-width="2.5"/>
-          <circle cx="30" cy="122" r="6" fill="#2e5aac"/>
-          <circle cx="30" cy="172" r="6" fill="#fff" stroke="#2e5aac" stroke-width="2.5"/>
+          <path d="M30 0 V200" fill="none" stroke="currentColor" stroke-width="2"/>
+          <path d="M30 78 C30 58 80 62 80 42 V18 M80 118 C80 98 30 102 30 122" fill="none" stroke="currentColor" stroke-width="2"/>
+          <circle cx="30" cy="30" r="6"/>
+          <circle cx="80" cy="18" r="5"/>
+          <circle cx="30" cy="78" r="6"/>
+          <circle cx="30" cy="122" r="6"/>
+          <circle cx="30" cy="172" r="6"/>
         </svg>
-        <div class="repository-summary__text">
-          <p class="eyebrow">Repository Snapshot</p>
-          <h1>{{ repositoryLabel }}</h1>
-          <p class="snapshot-note">浏览和搜索均基于本地快照<span class="commit-chip"><i aria-hidden="true"></i>{{ activeProvider.snapshot.commitSha.slice(0, 7) }}</span></p>
+        <div class="repository-summary__main">
+          <div class="repository-summary__text">
+            <p class="eyebrow">GitHub workspace</p>
+            <h1 id="repository-title">{{ repositoryName }}</h1>
+            <p class="snapshot-note">
+              <span class="branch-chip"><AppIcon name="branch" :size="15" />{{ branchName }}</span>
+              <span>快照</span>
+              <span class="commit-chip"><i aria-hidden="true"></i>{{ activeProvider.snapshot.commitSha.slice(0, 7) }}</span>
+            </p>
+          </div>
+          <button class="button button--hero" :disabled="browser.loading.value || mutationBusy" @click="refreshRepository">
+            <AppIcon name="refresh" />
+            {{ browser.loading.value ? '刷新中…' : '刷新快照' }}
+          </button>
         </div>
-        <button class="button button--secondary" :disabled="browser.loading.value || mutationBusy" @click="refreshRepository"><AppIcon name="refresh" />刷新快照</button>
+        <dl class="repository-stats" aria-label="仓库概览">
+          <div><dt>文件</dt><dd>{{ repositoryStats.files }}</dd></div>
+          <div><dt>文件夹</dt><dd>{{ repositoryStats.directories }}</dd></div>
+          <div><dt>资料体积</dt><dd>{{ repositoryStats.size }}</dd></div>
+          <div><dt>访问模式</dt><dd class="access-mode" :class="{ 'access-mode--write': hasWriteAccess }"><i aria-hidden="true"></i>{{ hasWriteAccess ? '可编辑' : '只读' }}</dd></div>
+        </dl>
       </section>
 
-      <section class="toolbar">
-        <BreadcrumbNav :path="browser.currentPath.value" :breadcrumbs="browser.breadcrumbs.value" @navigate="browser.navigate" @up="browser.goUp" />
-        <div class="toolbar-actions">
-          <button class="button button--secondary" :disabled="!canMutate" :title="canMutate ? '' : '需要 PAT 才能写入'" @click="mutations.clearError(); showCreateFolder = true"><AppIcon name="folder" />新建文件夹</button>
-          <button class="button button--primary" :disabled="!canMutate" :title="canMutate ? '' : '需要 PAT 才能写入'" @click="mutations.clearError(); showUpload = true"><AppIcon name="upload" />上传文件</button>
+      <section class="workspace-panel" aria-label="仓库文件">
+        <div class="toolbar">
+          <div class="toolbar-location">
+            <p class="eyebrow">当前目录 <span>{{ browser.entries.value.length }} 项</span></p>
+            <BreadcrumbNav :path="browser.currentPath.value" :breadcrumbs="browser.breadcrumbs.value" @navigate="browser.navigate" @up="browser.goUp" />
+          </div>
+          <div class="toolbar-actions">
+            <button class="button button--secondary" :disabled="!canMutate" :title="canMutate ? '' : '需要 PAT 才能写入'" @click="mutations.clearError(); showCreateFolder = true"><AppIcon name="folder" />新建文件夹</button>
+            <button class="button button--primary" :disabled="!canMutate" :title="canMutate ? '' : '需要 PAT 才能写入'" @click="mutations.clearError(); showUpload = true"><AppIcon name="upload" />上传文件</button>
+          </div>
         </div>
+
+        <div v-if="browser.searchActive.value" class="search-banner"><span>搜索“{{ browser.searchQuery.value }}”：{{ browser.entries.value.length }} 个结果</span><button class="button button--ghost" @click="browser.clearSearch">清除搜索</button></div>
+
+        <BatchActionBar
+          :count="selection.count.value"
+          :all-selected="selection.allSelected.value"
+          :some-selected="selection.someSelected.value"
+          :busy="downloadBusy"
+          @toggle-all="selection.toggleAll"
+          @clear="selection.clear"
+          @download="prepareBatchDownload"
+        />
+
+        <FileBrowser
+          :entries="browser.entries.value"
+          :view="configState.preferences.view"
+          :loading="browser.loading.value"
+          :error-message="browserError"
+          :search-active="browser.searchActive.value"
+          :can-mutate="canMutate"
+          :download-busy="downloadBusy"
+          :selected-paths="selection.selectedPaths.value"
+          @open="openEntry"
+          @download="downloadEntry"
+          @delete="deleteTarget = $event"
+          @toggle-selection="selection.toggle"
+        />
       </section>
-
-      <div v-if="browser.searchActive.value" class="search-banner"><span>搜索“{{ browser.searchQuery.value }}”：{{ browser.entries.value.length }} 个结果</span><button class="button button--ghost" @click="browser.clearSearch">清除搜索</button></div>
-
-      <BatchActionBar
-        :count="selection.count.value"
-        :all-selected="selection.allSelected.value"
-        :some-selected="selection.someSelected.value"
-        :busy="downloadBusy"
-        @toggle-all="selection.toggleAll"
-        @clear="selection.clear"
-        @download="prepareBatchDownload"
-      />
-
-      <FileBrowser
-        :entries="browser.entries.value"
-        :view="configState.preferences.view"
-        :loading="browser.loading.value"
-        :error-message="browserError"
-        :search-active="browser.searchActive.value"
-        :can-mutate="canMutate"
-        :download-busy="downloadBusy"
-        :selected-paths="selection.selectedPaths.value"
-        @open="openEntry"
-        @download="downloadEntry"
-        @delete="deleteTarget = $event"
-        @toggle-selection="selection.toggle"
-      />
     </main>
 
     <section v-else-if="!showConfig" class="welcome-panel"><span class="spinner" /><h1>正在连接 GitHub 仓库</h1><p>正在读取仓库快照，请稍候…</p></section>

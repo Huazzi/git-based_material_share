@@ -1,52 +1,61 @@
 :root {
   color-scheme: light;
 
-  /* Typography — Space Grotesk 展示 / DM Sans 正文 / JetBrains Mono 元数据 */
+  /* Typography */
   --font-body: "DM Sans", "Segoe UI", "Microsoft YaHei", sans-serif;
   --font-display: "Space Grotesk", "DM Sans", "Microsoft YaHei", sans-serif;
   --font-mono: "JetBrains Mono", "Cascadia Code", Consolas, "Microsoft YaHei", monospace;
 
-  /* Color — Working Tree 调色板 */
+  /* Semantic color system — Midnight workspace + mint action */
   --color-paper: #f3f5f9;
+  --color-paper-deep: #e9edf5;
   --color-surface: #ffffff;
-  --color-ink: #1b2434;
-  --color-ink-deep: #141c2b;
-  --color-ink-soft: #3a4660;
-  --color-muted: #66718a;
-  --color-border: #dde3ee;
-  --color-border-strong: #c6cfdf;
+  --color-surface-muted: #f8f9fc;
+  --color-ink: #172033;
+  --color-ink-deep: #0b1020;
+  --color-ink-soft: #39465d;
+  --color-muted: #68758c;
+  --color-border: #e1e6ef;
+  --color-border-strong: #ccd4e1;
 
-  --color-primary: #2e5aac;
-  --color-primary-strong: #234a92;
-  --color-primary-soft: #e9eefb;
-  --color-primary-faint: #f5f8fe;
+  --color-primary: #5b5ce2;
+  --color-primary-strong: #4748c9;
+  --color-primary-soft: #eeefff;
+  --color-primary-faint: #f7f7ff;
 
-  --color-commit: #1f883d;
-  --color-commit-strong: #1a7434;
-  --color-commit-soft: #e4f3e9;
+  --color-accent: #20b979;
+  --color-accent-strong: #159a63;
+  --color-accent-soft: #e7f8f0;
+  --color-commit: #27c281;
+  --color-commit-strong: #087d4d;
+  --color-commit-soft: #e7f8f0;
 
-  --color-folder: #c08a2d;
-  --color-special: #815ac0;
+  --color-folder: #d39132;
+  --color-special: #8357cc;
+  --color-danger: #d14357;
+  --color-danger-soft: #ffedf0;
+  --color-warning: #946410;
+  --color-warning-soft: #fff4d6;
+  --color-success: #118a58;
 
-  --color-danger: #c93a4a;
-  --color-danger-soft: #fdecef;
-  --color-warning: #92690f;
-  --color-warning-soft: #fdf3d7;
-  --color-success: #1f883d;
-
-  /* Shape & depth */
-  --radius-sm: 8px;
-  --radius-md: 12px;
-  --radius-lg: 16px;
-  --shadow-card: 0 1px 2px rgb(27 36 52 / 5%), 0 12px 32px -14px rgb(27 36 52 / 16%);
-  --shadow-lift: 0 2px 6px rgb(27 36 52 / 7%), 0 20px 48px -18px rgb(27 36 52 / 24%);
-  --shadow-overlay: 0 32px 90px -20px rgb(10 16 30 / 55%);
-  --ring: 0 0 0 3px rgb(46 90 172 / 24%);
+  /* Shape, depth, layering */
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
+  --radius-xl: 26px;
+  --shadow-card: 0 1px 2px rgb(17 24 39 / 3%), 0 16px 42px -26px rgb(15 23 42 / 30%);
+  --shadow-lift: 0 8px 24px -12px rgb(17 24 39 / 22%), 0 24px 50px -28px rgb(17 24 39 / 32%);
+  --shadow-overlay: 0 32px 90px -20px rgb(6 10 22 / 58%);
+  --ring: 0 0 0 3px rgb(91 92 226 / 22%);
+  --z-header: 30;
+  --z-footer: 20;
+  --z-overlay: 100;
+  --z-toast: 120;
 
   /* Motion */
-  --ease-out: cubic-bezier(.22, .68, .32, 1);
-  --dur-fast: 140ms;
-  --dur-med: 220ms;
+  --ease-out: cubic-bezier(.16, 1, .3, 1);
+  --dur-fast: 160ms;
+  --dur-med: 240ms;
 
   color: var(--color-ink);
   background: var(--color-paper);
@@ -55,9 +64,7 @@
   text-rendering: optimizeLegibility;
 }
 
-* {
-  box-sizing: border-box;
-}
+* { box-sizing: border-box; }
 
 html,
 body,
@@ -66,56 +73,54 @@ body,
   margin: 0;
 }
 
+html { background: var(--color-paper); }
+
 body {
   min-width: 320px;
+  min-height: 100dvh;
   background:
-    radial-gradient(1200px 480px at 85% -180px, rgb(46 90 172 / 7%), transparent 65%),
+    radial-gradient(900px 520px at 94% 0%, rgb(91 92 226 / 8%), transparent 64%),
+    radial-gradient(720px 420px at -8% 42%, rgb(32 185 121 / 6%), transparent 66%),
     var(--color-paper);
 }
 
 button,
 input,
-select {
-  font: inherit;
-}
+select,
+textarea { font: inherit; }
 
-button {
-  cursor: pointer;
-}
-
-button:disabled {
-  cursor: not-allowed;
-  opacity: 0.55;
-}
+button { cursor: pointer; touch-action: manipulation; }
+button:disabled { cursor: not-allowed; opacity: .5; }
 
 ::selection {
-  color: var(--color-ink);
-  background: rgb(46 90 172 / 18%);
+  color: var(--color-ink-deep);
+  background: rgb(91 92 226 / 20%);
 }
 
 :focus-visible {
   outline: 2px solid var(--color-primary);
-  outline-offset: 2px;
+  outline-offset: 3px;
 }
 
 button:focus:not(:focus-visible),
 input:focus:not(:focus-visible),
-select:focus:not(:focus-visible) {
-  outline: none;
-}
+select:focus:not(:focus-visible),
+textarea:focus:not(:focus-visible) { outline: none; }
 
-h1, h2, h3 {
+h1,
+h2,
+h3 {
   font-family: var(--font-display);
-  letter-spacing: -0.01em;
+  letter-spacing: -.025em;
 }
 
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
   *::after {
-    animation-duration: 0.01ms !important;
+    animation-duration: .01ms !important;
     animation-iteration-count: 1 !important;
     scroll-behavior: auto !important;
-    transition-duration: 0.01ms !important;
+    transition-duration: .01ms !important;
   }
 }
