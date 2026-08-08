@@ -4,6 +4,11 @@ export const FILE_LIMITS = Object.freeze({
   upload: 25 * MIB,
   preview: 25 * MIB,
   download: 100 * MIB,
+  batchUploadCount: 20,
+  batchUploadTotal: 100 * MIB,
+  batchDownloadCount: 50,
+  batchDownloadTotal: 500 * MIB,
+  batchDownloadBlobFallback: 200 * MIB,
 });
 
 export function getFilePolicy(size) {

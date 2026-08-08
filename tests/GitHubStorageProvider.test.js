@@ -1,11 +1,12 @@
 import { describe, expect, it, vi } from 'vitest';
 import { FILE_LIMITS } from '@/constants/fileLimits.js';
+import { createBatchUploadDraft, planBatchUpload } from '@/services/batch/BatchUploadPlanner.js';
 import { GitHubStorageProvider } from '@/services/storage/GitHubStorageProvider.js';
 
-function treeResponses(tree) {
+function treeResponses(tree, { commitSha = 'commit-1', treeSha = 'tree-1' } = {}) {
   return [
-    { data: { object: { sha: 'commit-1' } } },
-    { data: { tree: { sha: 'tree-1' } } },
+    { data: { object: { sha: commitSha } } },
+    { data: { tree: { sha: treeSha } } },
     { data: { tree, truncated: false } },
   ];
 }
@@ -225,6 +226,55 @@ describe('GitHubStorageProvider', () => {
     expect(treePayload.every((entry) => entry.sha === null)).toBe(true);
     expect(client.patch).toHaveBeenCalledWith('/repos/octo/notes/git/refs/heads/main',
       { sha: 'new-commit', force: false }, expect.any(Object));
+  });
+
+  it('revalidates and applies a batch as one Git commit', async () => {
+    const client = createClient([
+      ...treeResponses(tree),
+      ...treeResponses(tree),
+      { data: { sha: 'blob-1' } },
+      { data: { sha: 'blob-2' } },
+      { data: { sha: 'batch-tree' } },
+      { data: { sha: 'batch-commit' } },
+      { data: { object: { sha: 'batch-commit' } } },
+      ...treeResponses(tree),
+    ]);
+    const provider = new GitHubStorageProvider({
+      config: { owner: 'octo', repo: 'notes', branch: 'main' }, token: 'token', client,
+    });
+    await provider.initialize();
+    const draft = createBatchUploadDraft([uploadFile('new-1.md'), uploadFile('new-2.md')], {
+      directory: 'docs', snapshot: provider.snapshot,
+    });
+    const approved = planBatchUpload({ draft, snapshot: provider.snapshot });
+    const result = await provider.uploadBatch({ draft, fingerprint: approved.fingerprint, message: 'batch upload' });
+
+    expect(result.commitSha).toBe('batch-commit');
+    expect(client.post).toHaveBeenCalledTimes(4);
+    expect(client.patch).toHaveBeenCalledTimes(1);
+    expect(client.patch).toHaveBeenCalledWith('/repos/octo/notes/git/refs/heads/main',
+      { sha: 'batch-commit', force: false }, expect.any(Object));
+  });
+
+  it('installs the fresh snapshot and creates no blobs when the upload destination becomes stale', async () => {
+    const client = createClient([
+      ...treeResponses(tree),
+      ...treeResponses([], { commitSha: 'commit-2', treeSha: 'tree-2' }),
+    ]);
+    const provider = new GitHubStorageProvider({
+      config: { owner: 'octo', repo: 'notes', branch: 'main' }, token: 'token', client,
+    });
+    await provider.initialize();
+    const draft = createBatchUploadDraft([uploadFile('new.md')], {
+      directory: 'docs', snapshot: provider.snapshot,
+    });
+    const approved = planBatchUpload({ draft, snapshot: provider.snapshot });
+
+    await expect(provider.uploadBatch({ draft, fingerprint: approved.fingerprint }))
+      .rejects.toMatchObject({ code: 'BATCH_UPLOAD_STALE' });
+    expect(provider.snapshot.commitSha).toBe('commit-2');
+    expect(client.post).not.toHaveBeenCalled();
+    expect(client.patch).not.toHaveBeenCalled();
   });
 
   it('treats a lost ref-update response as an uncertain directory mutation', async () => {

@@ -28,4 +28,20 @@ describe('useRepositoryMutations', () => {
     expect(result).toMatchObject({ ok: false, requiresAudit: true, refreshFailed: true });
     expect(provider.deleteFile).toHaveBeenCalledTimes(1);
   });
+
+  it('syncs the provider-installed fresh snapshot after a stale batch plan', async () => {
+    const stale = new AppError('BATCH_UPLOAD_STALE', 'stale');
+    const provider = { uploadBatch: vi.fn().mockRejectedValue(stale) };
+    const browser = {
+      refresh: vi.fn(), sync: vi.fn(), invalidateView: vi.fn(),
+    };
+    const mutations = useRepositoryMutations({ getProvider: () => provider, browser });
+
+    const result = await mutations.uploadBatch({ draft: { files: [] }, fingerprint: 'old' });
+
+    expect(result).toMatchObject({ ok: false, reviewUpdated: true, requiresAudit: false });
+    expect(browser.invalidateView).toHaveBeenCalledTimes(1);
+    expect(browser.sync).toHaveBeenCalledTimes(1);
+    expect(browser.refresh).not.toHaveBeenCalled();
+  });
 });

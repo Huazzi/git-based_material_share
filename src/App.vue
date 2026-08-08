@@ -6,16 +6,20 @@ import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
 import AppFooter from '@/components/layout/AppFooter.vue';
 import AppHeader from '@/components/layout/AppHeader.vue';
 import BreadcrumbNav from '@/components/repository/BreadcrumbNav.vue';
+import BatchActionBar from '@/components/repository/BatchActionBar.vue';
 import CreateFolderDialog from '@/components/repository/CreateFolderDialog.vue';
 import FileBrowser from '@/components/repository/FileBrowser.vue';
 import RepositoryConfigDialog from '@/components/repository/RepositoryConfigDialog.vue';
+import BatchDownloadDialog from '@/components/download/BatchDownloadDialog.vue';
 import PreviewModal from '@/components/preview/PreviewModal.vue';
 import UploadDialog from '@/components/upload/UploadDialog.vue';
 import { useFilePreview } from '@/composables/useFilePreview.js';
+import { useBatchDownload } from '@/composables/useBatchDownload.js';
 import { useRepositoryBrowser } from '@/composables/useRepositoryBrowser.js';
 import { useRepositoryConfig } from '@/composables/useRepositoryConfig.js';
 import { useRepositoryMutations } from '@/composables/useRepositoryMutations.js';
 import { useRepositorySession } from '@/composables/useRepositorySession.js';
+import { useRepositorySelection } from '@/composables/useRepositorySelection.js';
 import { useToast } from '@/composables/useToast.js';
 import { getErrorMessage } from '@/errors/errorMessages.js';
 import { joinPath } from '@/utils/path.js';
@@ -26,7 +30,13 @@ const toast = useToast();
 const session = useRepositorySession({ browser });
 const activeProvider = session.activeProvider;
 const preview = useFilePreview(() => activeProvider.value);
-session.setInvalidator(preview.dispose);
+const selection = useRepositorySelection(browser);
+const batchDownload = useBatchDownload(() => activeProvider.value);
+session.setInvalidator(() => {
+  preview.dispose();
+  batchDownload.dispose();
+  selection.clear();
+});
 const mutations = useRepositoryMutations({ getProvider: () => activeProvider.value, browser });
 const showConfig = ref(false);
 const configBusy = ref(false);
@@ -43,6 +53,10 @@ const loaded = computed(() => Boolean(activeProvider.value?.snapshot));
 const canMutate = computed(() => activeProvider.value?.capabilities.canMutate && !mutationBusy.value);
 const browserError = computed(() => browser.error.value ? getErrorMessage(browser.error.value) : '');
 const previewError = computed(() => preview.state.error ? getErrorMessage(preview.state.error) : '');
+const batchDownloadError = computed(() => batchDownload.state.error ? getErrorMessage(batchDownload.state.error) : '');
+const downloadBusy = computed(() => preview.state.downloadBusy
+  || batchDownload.state.phase === 'running'
+  || batchDownload.state.phase === 'finalizing');
 const repositoryLabel = computed(() => configState.repository.value
   ? `${configState.repository.value.owner}/${configState.repository.value.repo} · ${configState.repository.value.branch}`
   : 'GitHub Material Hub');
@@ -131,13 +145,31 @@ async function refreshRepository() {
 }
 
 async function submitUpload(command) {
-  const result = await mutations.upload(command, browser.currentPath.value);
+  const result = await mutations.uploadBatch(command);
   if (result.ok) {
     showUpload.value = false;
-    toast.show('文件上传成功', 'success');
+    toast.show('批量上传已通过一个 Git commit 提交', 'success');
   } else {
     if (result.requiresAudit) showUpload.value = false;
     toast.show(getErrorMessage(result.error), result.requiresAudit ? 'warning' : 'error');
+  }
+}
+
+function prepareBatchDownload() {
+  try {
+    batchDownload.prepare(selection.selectedEntries.value);
+  } catch (error) {
+    toast.show(getErrorMessage(error), 'error');
+  }
+}
+
+async function startBatchDownload() {
+  const result = await batchDownload.start();
+  if (result.status === 'complete') {
+    selection.clear();
+    toast.show('ZIP 归档已生成', 'success');
+  } else if (result.status === 'error') {
+    toast.show(getErrorMessage(result.error), 'error');
   }
 }
 
@@ -230,6 +262,16 @@ onMounted(async () => {
 
       <div v-if="browser.searchActive.value" class="search-banner"><span>搜索“{{ browser.searchQuery.value }}”：{{ browser.entries.value.length }} 个结果</span><button class="button button--ghost" @click="browser.clearSearch">清除搜索</button></div>
 
+      <BatchActionBar
+        :count="selection.count.value"
+        :all-selected="selection.allSelected.value"
+        :some-selected="selection.someSelected.value"
+        :busy="downloadBusy"
+        @toggle-all="selection.toggleAll"
+        @clear="selection.clear"
+        @download="prepareBatchDownload"
+      />
+
       <FileBrowser
         :entries="browser.entries.value"
         :view="configState.preferences.view"
@@ -237,10 +279,12 @@ onMounted(async () => {
         :error-message="browserError"
         :search-active="browser.searchActive.value"
         :can-mutate="canMutate"
-        :download-busy="preview.state.downloadBusy"
+        :download-busy="downloadBusy"
+        :selected-paths="selection.selectedPaths.value"
         @open="openEntry"
         @download="downloadEntry"
         @delete="deleteTarget = $event"
+        @toggle-selection="selection.toggle"
       />
     </main>
 
@@ -260,10 +304,11 @@ onMounted(async () => {
       @close="showConfig = false"
       @reset="resetConfiguration"
     />
-    <UploadDialog :open="showUpload" :busy="mutationBusy" :existing-names="browser.directoryNames()" :status="mutationStatus" :error="mutationError" @submit="submitUpload" @close="showUpload = false" />
+    <UploadDialog :open="showUpload" :busy="mutationBusy" :snapshot="activeProvider?.snapshot" :directory="browser.currentPath.value" :status="mutationStatus" :error="mutationError" @submit="submitUpload" @close="showUpload = false" />
     <CreateFolderDialog :open="showCreateFolder" :busy="mutationBusy" :error="mutationError" @submit="submitCreateFolder" @close="showCreateFolder = false" />
     <ConfirmDialog :open="Boolean(deleteTarget)" title="确认删除" :message="deleteMessage" confirm-text="确认删除" :busy="mutationBusy" danger @confirm="confirmDelete" @close="deleteTarget = null" />
     <PreviewModal :state="preview.state" :error-message="previewError" :download-busy="preview.state.downloadBusy" @close="preview.close" @download="downloadEntry" />
+    <BatchDownloadDialog :state="batchDownload.state" :error-message="batchDownloadError" @start="startBatchDownload" @cancel="batchDownload.cancel" @close="batchDownload.close" />
     <AppToast :state="toast.state" @close="toast.close" />
   </div>
 </template>

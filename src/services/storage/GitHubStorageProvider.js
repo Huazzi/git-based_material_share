@@ -6,6 +6,7 @@ import { createGitHubClient } from '@/services/github/githubClient.js';
 import { mapGitHubError } from '@/services/github/githubError.js';
 import { GitHubMutationService } from '@/services/github/githubMutationService.js';
 import { MutationQueue } from '@/services/mutation/MutationQueue.js';
+import { planBatchUpload } from '@/services/batch/BatchUploadPlanner.js';
 import { RepositorySnapshot } from './RepositorySnapshot.js';
 import { StorageProvider } from './StorageProvider.js';
 
@@ -122,7 +123,7 @@ export class GitHubStorageProvider extends StorageProvider {
     };
   }
 
-  async readFile(path, { purpose = 'preview', signal, snapshot = this.#requireSnapshot() } = {}) {
+  async readFile(path, { purpose = 'preview', signal, snapshot = this.#requireSnapshot(), onProgress } = {}) {
     const normalized = normalizePath(path);
     const entry = snapshot.stat(normalized);
     if (!entry || entry.kind !== 'file') throw new AppError('RESOURCE_NOT_FOUND', 'File does not exist.');
@@ -145,6 +146,7 @@ export class GitHubStorageProvider extends StorageProvider {
         responseType: 'blob',
         headers: { Accept: 'application/vnd.github.raw+json' },
         onDownloadProgress: ({ loaded = 0, total }) => {
+          onProgress?.({ loaded, total: Number.isFinite(total) ? total : entry.size });
           if (loaded > maximum || (Number.isFinite(total) && total > maximum)) {
             exceeded = true;
             controller.abort();
@@ -217,6 +219,33 @@ export class GitHubStorageProvider extends StorageProvider {
         path: targetPath, file, name: targetName, message, existing, conflict,
       });
       return this.#refreshAfterMutation(commitSha, targetPath);
+    });
+  }
+
+  uploadBatch({ draft, message, fingerprint, onProgress }) {
+    this.#requireMutation();
+    return this.queue.enqueue(`upload-batch:${draft?.files?.length || 0}`, async () => {
+      this.#requireMutation();
+      const fresh = await this.#loadSnapshot();
+      let plan;
+      try {
+        plan = planBatchUpload({
+          draft,
+          snapshot: fresh,
+          message,
+          expectedFingerprint: fingerprint,
+        });
+      } catch (error) {
+        if (error?.code === 'BATCH_UPLOAD_STALE') this.snapshot = fresh;
+        throw error;
+      }
+      const commitSha = await this.mutations.uploadBatch({
+        snapshot: fresh,
+        files: plan.activeFiles,
+        message: plan.message,
+        onProgress,
+      });
+      return this.#refreshAfterMutation(commitSha, plan.directory);
     });
   }
 

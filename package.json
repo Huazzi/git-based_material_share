@@ -15,6 +15,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@zip.js/zip.js": "2.8.34",
     "axios": "1.18.1",
     "dompurify": "3.4.12",
     "mammoth": "1.12.0",

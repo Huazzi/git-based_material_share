@@ -82,4 +82,8 @@ export class RepositorySnapshot {
       entry.path.startsWith(prefix) && entry.kind !== 'directory'
     ));
   }
+
+  allEntries() {
+    return [...this.entriesByPath.values()];
+  }
 }

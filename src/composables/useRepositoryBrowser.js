@@ -9,6 +9,11 @@ export function useRepositoryBrowser() {
   const error = ref(null);
   const searchQuery = ref('');
   const searchActive = ref(false);
+  const viewRevision = ref(0);
+
+  function invalidateView() {
+    viewRevision.value += 1;
+  }
 
   const breadcrumbs = computed(() => {
     const parts = currentPath.value.split('/').filter(Boolean);
@@ -34,6 +39,7 @@ export function useRepositoryBrowser() {
   }
 
   function attachInitialized(nextProvider) {
+    invalidateView();
     provider.value = nextProvider;
     currentPath.value = '';
     searchQuery.value = '';
@@ -44,6 +50,7 @@ export function useRepositoryBrowser() {
   }
 
   function restore(nextProvider, state) {
+    invalidateView();
     provider.value = nextProvider;
     currentPath.value = state?.currentPath || '';
     searchQuery.value = state?.searchQuery || '';
@@ -54,6 +61,7 @@ export function useRepositoryBrowser() {
   }
 
   function detach() {
+    invalidateView();
     provider.value = null;
     currentPath.value = '';
     searchQuery.value = '';
@@ -68,6 +76,7 @@ export function useRepositoryBrowser() {
       attachInitialized(nextProvider);
       return;
     }
+    invalidateView();
     provider.value = nextProvider;
     currentPath.value = '';
     searchQuery.value = '';
@@ -87,6 +96,7 @@ export function useRepositoryBrowser() {
 
   async function refresh() {
     if (!provider.value) return;
+    invalidateView();
     loading.value = true;
     error.value = null;
     try {
@@ -101,6 +111,7 @@ export function useRepositoryBrowser() {
   }
 
   function navigate(path) {
+    invalidateView();
     currentPath.value = normalizePath(path);
     searchActive.value = false;
     searchQuery.value = '';
@@ -112,11 +123,13 @@ export function useRepositoryBrowser() {
   }
 
   function search() {
+    invalidateView();
     searchActive.value = Boolean(searchQuery.value.trim());
     sync();
   }
 
   function clearSearch() {
+    invalidateView();
     searchQuery.value = '';
     searchActive.value = false;
     sync();
@@ -138,7 +151,9 @@ export function useRepositoryBrowser() {
     error,
     searchQuery,
     searchActive,
+    viewRevision,
     breadcrumbs,
+    invalidateView,
     captureState,
     attachInitialized,
     restore,

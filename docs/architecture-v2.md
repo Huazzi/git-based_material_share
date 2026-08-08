@@ -45,3 +45,17 @@ V2 使用版本化的 repository、preferences、session token、remembered toke
 ## 错误边界
 
 组件只接收去敏后的 `AppError`。Axios request config、Authorization header 和原始响应不会进入 Toast 或组件状态。限流、认证、权限、冲突、网络、截断 Tree、大小策略及“提交成功但刷新失败”均有稳定错误码。
+
+## 批量上传
+
+`BatchUploadPlanner` 在界面确认和 provider 写入前使用同一套纯函数规则校验文件数、单文件/总大小、远端冲突和批次内重名。每个冲突必须明确选择重命名、覆盖或跳过；批次内后续重名只能重命名或跳过。
+
+provider 在唯一的 `MutationQueue` 中重新读取最新 ref/commit/tree，并用审批时的计划指纹重新校验。通过后按顺序创建 blob，再用 `base_tree` 创建一个 tree 和一个 commit，最后以 `force:false` 更新分支。只有 ref 更新被标记为分支 mutation；在此之前失败不会改变分支。
+
+## 批量 ZIP 下载
+
+选择状态只属于当前视图。列表/网格切换会保留选择，导航、搜索、刷新或切换仓库会清空选择。
+
+`BatchDownloadPlanner` 在当前 `RepositorySnapshot` 上展开目录，去重重叠选择，保留目录层级和空目录，并排除 `.gitkeep`、元数据文件、symlink 与 submodule。所有文件读取都显式携带计划捕获的 commit SHA；网络并发上限为 3，ZIP 条目按稳定路径顺序写入，任一失败会取消其余请求且不提交最终文件。
+
+ZIP 输出优先使用 File System Access API 的 writable stream，允许最多 500 MiB 的批量策略；没有 writable stream 时回退到 Zip.js `BlobWriter`，回退上限为 200 MiB。取消或失败会中止 writable stream；Blob 回退只在完整归档成功后触发浏览器下载。

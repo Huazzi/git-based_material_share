@@ -43,4 +43,41 @@ describe('GitHubMutationService', () => {
         { path: 'docs/vendor', mode: '160000', type: 'commit', sha: null },
       ]);
   });
+
+  it('creates blobs before one tree, one commit and one non-forced ref update for a batch', async () => {
+    let blobCounter = 0;
+    const request = vi.fn(async (_method, _url, _options, metadata) => {
+      if (metadata.operation === 'create-upload-blob') return { data: { sha: `blob-${++blobCounter}` } };
+      if (metadata.operation === 'create-upload-tree') return { data: { sha: 'batch-tree' } };
+      if (metadata.operation === 'create-upload-commit') return { data: { sha: 'batch-commit' } };
+      return { data: { object: { sha: 'batch-commit' } } };
+    });
+    const service = new GitHubMutationService({ request, basePath: '/repos/octo/notes', branch: 'main' });
+    const makeFile = (text) => ({ arrayBuffer: vi.fn().mockResolvedValue(new TextEncoder().encode(text).buffer) });
+
+    const sha = await service.uploadBatch({
+      snapshot: { treeSha: 'base-tree', commitSha: 'head' },
+      files: [
+        { file: makeFile('a'), targetName: 'a.txt', targetPath: 'docs/a.txt', mode: '100644' },
+        { file: makeFile('b'), targetName: 'b.txt', targetPath: 'docs/b.txt', mode: '100644' },
+      ],
+      message: 'batch',
+    });
+
+    expect(sha).toBe('batch-commit');
+    expect(request.mock.calls.map((call) => call[3].operation)).toEqual([
+      'create-upload-blob', 'create-upload-blob', 'create-upload-tree', 'create-upload-commit', 'update-ref',
+    ]);
+    expect(request.mock.calls[2][2].data).toEqual({
+      base_tree: 'base-tree',
+      tree: [
+        { path: 'docs/a.txt', mode: '100644', type: 'blob', sha: 'blob-1' },
+        { path: 'docs/b.txt', mode: '100644', type: 'blob', sha: 'blob-2' },
+      ],
+    });
+    expect(request.mock.calls.filter((call) => call[3].mutation)).toHaveLength(1);
+    expect(request).toHaveBeenLastCalledWith('patch', '/repos/octo/notes/git/refs/heads/main', {
+      data: { sha: 'batch-commit', force: false },
+    }, { operation: 'update-ref', mutation: true });
+  });
 });

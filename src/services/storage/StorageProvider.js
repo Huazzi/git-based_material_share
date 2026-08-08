@@ -10,6 +10,7 @@ export class StorageProvider {
   stat() { throw new Error('Not implemented.'); }
   async readFile() { throw new Error('Not implemented.'); }
   async upload() { throw new Error('Not implemented.'); }
+  async uploadBatch() { throw new Error('Not implemented.'); }
   async createDirectory() { throw new Error('Not implemented.'); }
   async deleteFile() { throw new Error('Not implemented.'); }
   async deleteDirectory() { throw new Error('Not implemented.'); }
